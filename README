@@ -1,0 +1,189 @@
+
+DBD::JDBC - JDBC proxy driver for the DBI module
+
+  Copyright 1999-2000 Vizdom Software, Inc. All Rights Reserved.
+  
+  This program is free software; you can redistribute it and/or 
+  modify it under the same terms as the Perl Kit, namely, under 
+  the terms of either:
+  
+      a) the GNU General Public License as published by the Free
+      Software Foundation; either version 1 of the License, or 
+      (at your option) any later version, or
+  
+      b) the "Artistic License" that comes with the Perl Kit.
+  
+  This program is distributed in the hope that it will be seful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
+  either the GNU General Public License or the Artistic License
+  for more details. 
+
+
+SUMMARY
+
+  This module allows you to use DBI to access a JDBC driver from
+  Perl and is implemented in a fashion similar to that of
+  DBD::Proxy. There are two components: a pure Perl DBD::JDBC
+  module, and a pure Java server application. Both must be
+  installed in order to use this driver, though, like DBD::Proxy,
+  they may be installed on separate machines. 
+
+  The DBD::JDBC Java server process is threaded and supports
+  multiple simultaneous connections.
+
+  JDBC 1.22 drivers are currently supported. JDBC 2.0-compatible
+  drivers are expected to work, but no JDBC 2.0 functionality is
+  exposed via DBD::JDBC.
+
+  This module also allows a Java application or servlet to create
+  a JDBC connection and then exec a Perl script which can use
+  that pre-existing JDBC connection via DBI. 
+
+  See the JDBC.pod file for more information on usage.
+
+
+PREREQUISITES
+
+  The following must be installed before attempting to install
+  this driver. 
+
+      Perl 5.004_04 or higher
+      Convert::BER 1.31
+      DBI 1.11 or higher
+
+  
+  In addition to Perl, the following must be available in order
+  to run this driver. 
+
+      Java Virtual Machine compatible with JDK 1.1
+      JDBC driver for your database of choice
+
+
+  Platform-specific notes
+      On AIX, make sure you have the 1.1.6 (or later) JVM with
+      support for the ASCII and ISO8859_1 character
+      encodings. The DBD::JDBC server expects the Perl side to
+      use an ASCII-encoded string to indicate its character set.
+      This fails with an UnsupportedEncodingException on the
+      older AIX JVM. 
+
+
+INSTALLATION
+
+  There are three components to install: Convert::BER, DBD::JDBC,
+  and the Java server.
+
+  * Convert::BER 1.31
+    
+    See the README file included with Convert::BER for
+    installation instructions.
+
+
+  * The DBD::JDBC server component
+
+    The Java classes and their source code are provided in
+    dbd_jdbc.jar. Copy this file to a location of your
+    choice. See the DBD::JDBC documentation (JDBC.pod) for
+    instructions on running the server.
+
+    You can install the DBD::JDBC Perl module and test it before
+    setting up this server.
+
+
+  * DBD::JDBC
+
+    The installation procedure for the Perl module follows the
+    usual Perl installation procedure, but see below for details
+    on running the "make test" step successfully.
+
+      perl Makefile.PL
+      make
+      make test
+      make install
+
+
+    The tests run during installation use various environment
+    variables to locate your Java runtime, your JDBC driver, and
+    so on. If you don't set the necessary environment variables,
+    the tests will fail. PLEASE NOTE that the use of environment
+    variables by the test scripts does not reflect normal usage
+    of this driver; in general usage only the standard Java
+    CLASSPATH environment variable needs to be set for the Java
+    server portion of this driver. Also note that the test
+    scripts attempt to start the Java server portion of this
+    driver automatically; in normal usage, you will start the
+    Java server by hand or in a startup script and leave it
+    running (like a web server) for your scripts to connect to.
+
+    If you do not have a JDBC driver for your database installed
+    on the machine on which you're installing DBD::JDBC, only the
+    first test will succeed, since the others use JDBC.
+
+    - If your JDBC driver is installed on the same machine where you
+    are performing the DBD::JDBC installation, set the following
+    environment variables:
+
+      DBDJDBC_JAVA_BIN: the Java executable. This will default to
+      "java", so if java is in your path, you need not set
+      this. Otherwise, set it to the complete path to your java
+      executable. This will be used to start the Java server
+      portion of this driver.
+
+      CLASSPATH: this must include your JDBC driver and
+      "./dbd_jdbc.jar" (the Java server portion of this driver).
+
+      DBDJDBC_URL: a valid URL for your JDBC driver. 
+
+    A few tests for specific databases have been provided, based
+    on the databases available during development. See the tests
+    in t/ to see if a test is available for your driver and, if
+    so, read the test file for more information on running that
+    test. These test files provide some standard default values. 
+
+    If no database-specific test exists, you should also set the
+    following environment variables: 
+
+      DBDJDBC_DRIVER: the complete class name of your JDBC
+      driver. For example, for Oracle, use
+      oracle.jdbc.driver.OracleDriver.  
+
+      DBDJDBC_USER: the database username to use when connecting. 
+
+      DBDJDBC_PASSWORD: the database password to use when connecting. 
+
+
+    In either case, you may choose to override the port which the
+    Perl and Java components of this driver will use during
+    testing by setting DBDJDBC_PORT. The default is 43321. 
+
+    Use "make test TEST_VERBOSE=1" to see which values the test
+    script is using in its attempt to connect.
+
+
+  
+NOT YET IMPLEMENTED
+  DBI interface methods. 
+  
+      DBI->data_sources('JDBC')
+
+      the metadata methods $dbh->table_info, $dbh->tables,
+      $dbh->type_info_all, and $dbh->type_info
+
+      $sth->cancel
+
+      $sth->bind_param_inout
+
+  Access to JDBC-specific functionality.
+
+
+FOR MORE INFORMATION
+
+  perldoc DBI
+
+  For general DBI information and questions, see the DBI home
+  page at
+      http://www.symbolstone.org/technology/perl/DBI/index.html
+
+  To contact the author of this module, 
+      Gennis Emerson <gemerson@vizdom.com>

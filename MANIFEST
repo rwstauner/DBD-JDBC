@@ -1,0 +1,16 @@
+Changes
+JDBC.pm
+JDBC.pod
+MANIFEST
+Makefile.PL
+README
+README.basis
+ToDo
+dbd_jdbc.jar
+example/PerlServlet.java
+example/testPerlServlet.pl
+t/01_env.t
+t/02_connect.t
+t/basis.t
+t/lib.pl
+t/oracle.t

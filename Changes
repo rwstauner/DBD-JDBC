@@ -1,0 +1,28 @@
+Changes for DBD::JDBC.
+
+May 2000
+        Version 0.62.
+
+        Changed required version of Convert::BER to 1.31 and
+        removed Convert::BER 1.265 from the driver distribution.
+
+        Changed connect implementation to delay creation of $dbh
+        until server connection has succeeded. This allows
+        checking of $DBI::{err,errstr,state} in a separate
+        statement after the call to connect.
+
+
+January 2000
+        Added ability to create a single Server with a
+        pre-existing Java connection within a Java
+        application. See the example in the example directory. 
+
+
+        Added $! to socket error reporting; why'd I leave that
+        out? 
+
+
+October 1999
+        Initial version.
+
+

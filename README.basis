@@ -1,0 +1,112 @@
+This is a hints file for using the DBD::JDBC driver with the
+BASIS JDBC driver.
+
+* Connecting
+
+You must use the BASIS JDBC URL format in which all connection
+properties (other than the database username and password) are
+specified as part of the URL. For example,
+
+  jdbc:opentext:basis://basishost/tour_all?host.user=user&host.password=pwd
+  jdbc:opentext:basis://user:pwd@basishost/tour_all
+
+
+If you need to specify connection properties (such as host.user)
+in the query-string portion of the URL after the database list,
+you must escape the "=" characters (and any ";" characters).
+
+Example
+    $url = "jdbc:opentext:basis://basishost/tour_all?host.user=user&host.password=pwd";
+    $url =~ s/([=;])/uc sprintf("%%%02x",ord($1))/eg;
+    $dsn = "dbi:JDBC:hostname=myhost;port=12345;url=$url";
+
+
+
+* Compound fields
+
+In the BASIS JDBC driver build 41 or later, all subfields of
+compound fields will be returned by ResultSet.getString(). Using
+DBD::JDBC, $sth->fetch will return the same delimited string
+returned by the JDBC driver. The subfield delimiter is "\r\n".
+(You can find the build number of the JDBC driver by running
+"java com.opentext.basis.jdbc.BasisDriver" at a command line.)
+
+You may update a compound field by setting its value to a string
+of subfield values delimited by "\r\n".
+
+Example
+    $sth = $dbh->prepare("select destin from sched");
+    $sth->execute();
+    while ($row = $sth->fetch()) {
+        @subfields = split /\r\n/, $row->[0];
+        print "There are ", scalar(@subfields), " subfields\n";
+    }
+
+    $sth2 = $dbh->prepare(qq/update sched set destin = ?/);
+    $sth2->bind_param(1, "Galveston\r\nWashington, DC\r\nPhiladelphia");
+    $rows_affected = $sth2->execute();
+
+
+
+
+* bind_param
+
+The BASIS JDBC driver uses OpenAPI, which treats parameters as
+strings. For this reason, using the type hints for any types
+other than the binary types is not likely to increase
+performance. It will simply cause an extra set of data
+conversions to the hinted-at type and back to a string.  When no
+type hint is specified, the type sent to the DBD::JDBC server
+defaults to VARCHAR, which means the data will be treated as a
+string automatically.
+
+Note that using the type hint with binary data is required to
+avoid character set conversion.
+
+Also note that dates must be a string in one of the valid BASIS
+date formats. 
+
+Example
+    use DBI qw(:sql_types);   # To import SQL_LONGVARBINARY, etc. 
+    
+    # ...
+
+    $filedata = my_read_file("my_binary_file");
+    $q = qq/insert into my_table (DM_BLOB) values (?)/;
+    $sth = $dbh->prepare($q);
+    $sth->bind_param(1, $filedata, SQL_LONGVARBINARY);
+    $sth->execute();
+
+
+
+* rows
+
+The rows function behaves as described in the DBI
+specification. In particular, it does not return the number of
+rows in a result set until the entire result set has been read. 
+
+
+
+* Scrollable result sets
+
+The DBI interface does not support scrollable result sets. The
+BasisResultSet methods which support scrollable result sets are
+not available through the DBI driver.
+
+
+
+* Checkin/checkout
+
+These tasks must be done using the SQL extensions supported by
+the JDBC driver. The checkoutRow() and cancelRowCheckout()
+methods are not available through the DBI driver.
+
+
+
+* Properties
+
+The following BASIS-specific properties are not accessible
+through the DBI interface.
+
+  Wait, Schema, Converter, HistoryEnabled, TextOperator,
+  HitHighlighting, HitStartTag, HitEndTag

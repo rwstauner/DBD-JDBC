@@ -197,6 +197,30 @@ Example
    $dsn = "dbi:JDBC:hostname=myhost:12345;url=jdbc:oracle:thin:\@mydbhost:1521:test;jdbc_character_set=ASCII";
 
 
+=head2 Specifying JDBC connection properties
+
+You can specify JDBC connection properties in the JDBC URL. You
+can also specify connection properties as follows: 
+
+   %properties = ('user' => 'user', 
+                  'password' => 'password', 
+                  'host.name' => 'dbhost', 
+                  'host.port' => '7000');
+
+   $dsn = "dbi:JDBC:hostname=host:9001;url=jdbc:opentext:db:";
+   $dbh = DBI->connect($dsn, undef, undef, 
+          { PrintError => 0, RaiseError => 1, jdbc_properties => \%properties })
+          or die "Failed to connect: ($DBI::err) $DBI::errstr\n";
+
+When specifying properties this way, use C<undef> for the user
+and password parameters in the C<DBI-E<gt>connect> method. The
+DBD::JDBC server will use the JDBC method
+C<DriverManager.getConnection(String, Properties)> when the
+username and password parameters are undefined. Otherwise, it
+will use the  JDBC method
+C<DriverManager.getConnection(String, String, String)> and ignore
+any other connection properties. 
+
 
 =head1 USAGE NOTES
 
@@ -208,6 +232,22 @@ DBI methods, merely to provide access to JDBC-specific methods
 with no DBI equivalent. Reflection, rather than explicit methods
 corresponding to methods in the JDBC API, is used in order to
 allow access to driver-specific methods not in the JDBC API.
+
+The general syntax is
+
+  $h->func(parameter, ..., jdbc_<jdbc_method_name>);
+
+For example, 
+
+  $ret = $dbh->func("jdbc_getAutoCommit");
+  $ret = $sth->func("mycursor", "jdbc_Statement.setCursorName");
+
+In a previous release of this driver, the C<jdbc_> prefix on the
+method names was not used. This prefix is required by DBI. It is
+optional in this release; both the prefixed and non-prefixed
+versions of the method names will work. Support for non-prefixed
+JDBC method names will be removed in a future release of
+DBD::JDBC. 
 
 The following limitations apply: 
 
@@ -331,10 +371,10 @@ C<func> method on the C<$dbh> handle.
 Examples
 
   
-    $ret = $dbh->func("getAutoCommit");
-    $dbh->func([1 => SQL_BIT], "setAutoCommit");
-    $ret = $dbh->func("select * from client", "nativeSQL");
-    $dbh->func([4 => SQL_INTEGER], "setTransactionIsolation");
+    $ret = $dbh->func("jdbc_getAutoCommit");
+    $dbh->func([1 => SQL_BIT], "jdbc_setAutoCommit");
+    $ret = $dbh->func("select * from client", "jdbc_nativeSQL");
+    $dbh->func([4 => SQL_INTEGER], "jdbc_setTransactionIsolation");
      
 
 B<Statement, ResultSet, and ResultSetMetaData methods>
@@ -352,15 +392,15 @@ after C<$sth-E<gt>execute> has been called.
 Examples
 
 
-    $ret = $sth->func("Statement.getMaxFieldSize");
-    $sth1->func("mycursor", "Statement.setCursorName");
-    $sth1->func([22 => SQL_INTEGER], "Statement.setMaxFieldSize");
+    $ret = $sth->func("jdbc_Statement.getMaxFieldSize");
+    $sth1->func("mycursor", "jdbc_Statement.setCursorName");
+    $sth1->func([22 => SQL_INTEGER], "jdbc_Statement.setMaxFieldSize");
 
-    $ret = $sth1->func("ResultSet.next");
-    $ret = $sth1->func("cname", "ResultSet.getString");
-    $ret = $sth2->func("eno", [5003 => SQL_INTEGER], "ResultSet.updateInt");
+    $ret = $sth1->func("jdbc_ResultSet.next");
+    $ret = $sth1->func("cname", "jdbc_ResultSet.getString");
+    $ret = $sth2->func("eno", [5003 => SQL_INTEGER], "jdbc_ResultSet.updateInt");
 
-    $ret = $sth1->func([1 => SQL_INTEGER], "ResultSetMetaData.getSchemaName");
+    $ret = $sth1->func([1 => SQL_INTEGER], "jdbc_ResultSetMetaData.getSchemaName");
 
 
 B<Notes>
@@ -483,6 +523,9 @@ C<com.vizdom.dbd.jdbc.Connection> for details.
 =item DBI->connect
 
         DriverManager.getConnection(url, username, password)
+        -or-
+        DriverManager.getConnection(url, properties)
+
         Connection.setAutoCommit   [if AutoCommit was specified]
 
 =item $dbh->prepare
@@ -596,7 +639,7 @@ conversions. For example, if your database's JDBC driver passes
 all data to the database as strings, the JDBC driver will 
 have to convert numbers back to strings anyway. 
 
-A call to C<$sth-E<gt>fetch> will cause the DBD:JDBC server to
+A call to C<$sth-E<gt>fetch> will cause the DBD::JDBC server to
 use the column type information from ResultSetMetaData to
 determine how to retrieve column data.
 
@@ -791,7 +834,7 @@ perldoc DBI
 For general DBI information and questions, see the DBI home
 page at
 
-    http://www.symbolstone.org/technology/perl/DBI/index.html
+    http://dbi.perl.org/
 
 This site contains pointers to archives of the DBI mailing lists
 and list subscription information. DBI in general is primarily
@@ -805,7 +848,7 @@ Gennis Emerson <gemerson@vizdom.com>
 
 =head1 COPYRIGHT
 
-Copyright 1999-2000 Vizdom Software, Inc. All Rights Reserved.
+Copyright 1999-2001 Vizdom Software, Inc. All Rights Reserved.
   
 This program is free software; you can redistribute it and/or 
 modify it under the same terms as the Perl Kit, namely, under 

@@ -68,7 +68,4 @@ Possible server extensions:
   inetd support (add a main to Connection)
 
 
-Allow the username and password to be null, and call
-DriverManager.getConnection(url) in that case.
-
 

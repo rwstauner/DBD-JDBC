@@ -1,6 +1,6 @@
-# $Id: JDBC.pm,v 1.28 2000/07/06 04:42:25 gemerson Exp $
+# $Id: JDBC.pm,v 1.30 2001/05/04 04:09:06 gemerson Exp $
 #
-#  Copyright 1999-2000 Vizdom Software, Inc. All Rights Reserved.
+#  Copyright 1999-2001 Vizdom Software, Inc. All Rights Reserved.
 #  
 #  This program is free software; you can redistribute it and/or 
 #  modify it under the same terms as the Perl Kit, namely, under 
@@ -24,7 +24,7 @@ require 5.004;
     package DBD::JDBC;
     use DBI 1.13;
     
-    $DBD::JDBC::VERSION = 0.63;
+    $DBD::JDBC::VERSION = 0.64;
     
     $DBD::JDBC::drh = undef;
     $DBD::JDBC::err = 0;
@@ -73,19 +73,20 @@ require 5.004;
     # response. If an error occurs, this function will use
     # DBI::set_err and return undef. 
     #
-    # args: a DBI object handle (assumed to have the attributes
-    #   jdbc_socket and jdbc_ber), an array reference containing
-    #   the arguments for the BER encode method, and an array
-    #   reference containing the arguments for the BER decode method
+    # args: 
+    #   $h: a DBI object handle; used for debugging and error reporting
+    #   $socket: the server socket
+    #   $ber: a BER object for encoding and decoding messages
+    #   $encode_list: an array reference containing the arguments 
+    #                 for the BER encode
+    #   $decode_list: an array reference containing the arguments for
+    #                 the BER decode method
+    #
     # returns: true on success, false (and calls DBI::_set_err) on failure
     sub _send_request { 
-        my ($h, $encode_list, $decode_list) = @_;
-        my ($debug) = $h->trace();
-        my ($socket, $ber);
-        $socket = $h->FETCH('jdbc_socket');
-        $ber = $h->FETCH('jdbc_ber');
+        my ($h, $socket, $ber, $encode_list, $decode_list) = @_;
+        my $debug = $h->trace();
 
-        $h->{jdbc_last_error} = undef;  # Reset chained error messages.
         $ber->buffer("");
         $h->trace_msg("Encoding [" . join(" | ", @$encode_list) . "]\n", 3) 
             if $debug;
@@ -181,62 +182,89 @@ require 5.004;
     *_send_request = \&DBD::JDBC::_send_request;
 
     # Opens a socket connection to the host/port specified in the
-    # dsn. The remaining connection information is passed to the server.
+    # dsn, sends a connection request to the server-side JDBC
+    # driver, and returns a new database handle. Parameters which
+    # can be specified in the DSN: 
+    #  hostname: the DBD::JDBC server host; may be in the form name:port
+    #  port: the DBD::JDBC server port
+    #  url: the JDBC URL to pass to the JDBC driver
+    #  jdbc_character_set: a Java character encoding name; should
+    #    be the client's (the Perl application's) character encoding
+    #
+    # Arbitrary JDBC connection properties can be specified by
+    # passing a hash reference as the value of the
+    # "jdbc_properties" key in the attributes hash in the
+    # DBI->connect method.
+    #
+    # If the user and password values passed to this method in
+    # the DBI->connect call are undefined, the server will use
+    # the DriverManager.getConnection(String, Properties)
+    # method. Otherwise, the server will use the
+    # DriverManager.getConnection(String, String, String) method.
+    #
+    # args
+    #  $drh: driver handle
+    #  $dsn: dsn
+    #  $user: username; may be undef
+    #  $auth: password; may be undef
+    #  $attr: hash reference of connection properties
     #
     # JDBC: DriverManager.getConnection, Connection.setXXX
     sub connect {
         my ($drh, $dsn, $user, $auth, $attr) = @_;
 
-        my ($debug) = DBI->trace(); 
+        my $debug = DBI->trace(); 
 
         # Any ; or = characters in the url must be escaped using
         # http url escape syntax (e.g., an url of foo=bar becomes
         # foo%3Dbar). The driver will unescape the url portion of
         # the dsn. dsn format: 
-        #   hostname=<host>[:port];[port=<port>;]url=<url>
+        #   hostname=<host>[:port];[port=<port>;]url=<url>[;jdbc_character_set=<encoding>]
 
-        my (%dsn) = split /[;=]/, $dsn;
-        if ($dsn{'hostname'} && !$dsn{'port'}) {
-            ($dsn{'hostname'}, $dsn{'port'}) = split /:/, $dsn{'hostname'};
+        my %dsn = split /[;=]/, $dsn;
+        my $hostname = $dsn{'hostname'};
+        my $port     = $dsn{'port'};
+        my $url      = $dsn{'url'};
+        my $encoding = $dsn{'jdbc_character_set'} || "ISO8859_1";
+        if ($hostname && !$port) {
+            ($hostname, $port) = split /:/, $hostname;
         }
-        
-        # Unescape any escaped ; or = in the URL. (; is 0x3b, = is 0x3d)
-        $dsn{'url'} =~ s/%(3[bBdD])/pack("c", hex($1))/ge;
-
+        $url =~ s/%(3[bBdD])/pack("c", hex($1))/ge;   # (; is 0x3b, = is 0x3d)
+        my %properties;
+        if ($attr && $attr->{'jdbc_properties'}) {
+            %properties = %{ $attr->{'jdbc_properties'} };
+        }
+        else {
+            %properties = ();
+        }
         return $drh->DBI::set_err(
                   DBD::JDBC::ErrorMessages::missing_dsn_component('hostname'))
-            unless $dsn{'hostname'};
+            unless $hostname;
         return $drh->DBI::set_err(
                   DBD::JDBC::ErrorMessages::missing_dsn_component('port'))
-            unless $dsn{'port'};
+            unless $port;
         return $drh->DBI::set_err(
                   DBD::JDBC::ErrorMessages::missing_dsn_component('url'))
-            unless $dsn{'url'};
+            unless $url;
 
         # Connect to the server.
-        my ($socket);
-        $socket = IO::Socket::INET->new(PeerAddr => $dsn{'hostname'}, 
-                                        PeerPort => $dsn{'port'},
-                                        Proto => 'tcp');
+        my $socket = IO::Socket::INET->new(PeerAddr => $hostname, 
+                                           PeerPort => $port,
+                                           Proto => 'tcp');
 
         return $drh->DBI::set_err(DBD::JDBC::ErrorMessages::socket_error($@)) 
             if !$socket;
 
         my ($ber) = new DBD::JDBC::BER;
 
-        # These values need to be stored in the handle before
-        # calling _send_request.
-        $drh->STORE('jdbc_socket' => $socket);
-        $drh->STORE('jdbc_ber' => $ber);
-
-        my (%properties);
-        $properties{'CharacterEncoding'} = 
-            $dsn{jdbc_character_set} || "ISO8859_1";
-
-        my ($response);
+        my $response;
         return undef unless
             _send_request($drh,
-                          [CONNECT_REQ => [STRING => [$dsn{url}, $user, $auth],
+                          $socket, $ber, 
+                          [CONNECT_REQ => [STRING => $url, 
+                                           ($user?'STRING':'NULL') => $user, 
+                                           ($auth?'STRING':'NULL') => $auth,
+                                           STRING => $encoding,
                                            HASH => [STRING => [%properties]]]],
                           [CONNECT_RESP => \$response]);
 
@@ -253,12 +281,12 @@ require 5.004;
             'Name' => $dsn,
         });
 
+        $dbh->STORE('Active' => 1);
         $dbh->STORE('jdbc_socket' => $socket);
         $dbh->STORE('jdbc_ber' => $ber);
-        $dbh->STORE('Active' => 1);
-        $dbh->STORE('jdbc_character_set' => $properties{CharacterEncoding});
+        $dbh->STORE('jdbc_character_set' => $encoding);
         # The connection list is used by disconnect_all.
-        my($conns) = $drh->FETCH('jdbc_connections') || [];
+        my ($conns) = $drh->FETCH('jdbc_connections') || [];
         push @$conns, $dbh;
         $drh->STORE('jdbc_connections' => $conns);
 
@@ -343,6 +371,7 @@ require 5.004;
         my ($statement_handle);
         return undef unless
             _send_request($dbh,
+                          $dbh->FETCH('jdbc_socket'), $dbh->FETCH('jdbc_ber'),
                           [PREPARE_REQ => $statement],
                           [PREPARE_RESP => \$statement_handle]);
         
@@ -369,6 +398,7 @@ require 5.004;
         my ($dbh) = shift;
         my ($resp);
         return _send_request($dbh,
+                             $dbh->FETCH('jdbc_socket'), $dbh->FETCH('jdbc_ber'),
                              [COMMIT_REQ => 0],
                              [COMMIT_RESP => \$resp]);
     }
@@ -378,6 +408,7 @@ require 5.004;
         my ($dbh) = shift;
         my ($resp);
         return _send_request($dbh,
+                             $dbh->FETCH('jdbc_socket'), $dbh->FETCH('jdbc_ber'),
                              [ROLLBACK_REQ => 0],
                              [ROLLBACK_RESP => \$resp]);
     }
@@ -394,6 +425,7 @@ require 5.004;
         my ($resp);
         return undef unless
             _send_request($dbh,
+                          $dbh->FETCH('jdbc_socket'), $dbh->FETCH('jdbc_ber'),
                           [PING_REQ => 0],
                           [PING_RESP => \$resp]);
         return $resp;
@@ -416,6 +448,8 @@ require 5.004;
         $dbh->STORE('Active' => 0);
         my $resp;
         my ($result) = _send_request($dbh,
+                                     $dbh->FETCH('jdbc_socket'), 
+                                     $dbh->FETCH('jdbc_ber'),
                                      [DISCONNECT_REQ => 0],
                                      [DISCONNECT_RESP => \$resp]);
 
@@ -439,6 +473,7 @@ require 5.004;
         my ($dbh) = shift;
         my ($method) = $AUTOLOAD;
         $method =~ s/.*://;  # method name starts out fully-qualified
+        $method =~ s/^jdbc_//;
         my (@parameters) = @_;
 
         # Try resetting errors.
@@ -462,6 +497,7 @@ require 5.004;
         my (@value);
         return undef unless
             _send_request($dbh,
+                          $dbh->FETCH('jdbc_socket'), $dbh->FETCH('jdbc_ber'),
                           [CONNECTION_FUNC_REQ => [$method,
                                                    \@parameters_with_types]],
 
@@ -568,6 +604,7 @@ require 5.004;
         my (@data);
         return undef unless
             _send_request($dbh,
+                          $dbh->FETCH('jdbc_socket'), $dbh->FETCH('jdbc_ber'),
                           [GET_CONNECTION_PROPERTY_REQ => $attr],
                           [GET_CONNECTION_PROPERTY_RESP => \@data]);
         return \@data;
@@ -583,6 +620,7 @@ require 5.004;
         my ($dbh, $attr, $value) = @_;
         my ($data); 
         _send_request($dbh,
+                      $dbh->FETCH('jdbc_socket'), $dbh->FETCH('jdbc_ber'), 
                       [SET_CONNECTION_PROPERTY_REQ => 
                        [STRING => $attr,
                         STRING => $value]],
@@ -707,6 +745,7 @@ require 5.004;
         my ($rowcount, $columncount);
         return undef unless
             _send_request($sth,
+                          $sth->FETCH('jdbc_socket'), $sth->FETCH('jdbc_ber'),
                           [EXECUTE_REQ => [$sth->FETCH('jdbc_handle'),
                                            $paramcount,
                                            \@encodelist]],
@@ -739,6 +778,7 @@ require 5.004;
 
         return undef 
             unless _send_request($sth,
+                                 $sth->FETCH('jdbc_socket'), $sth->FETCH('jdbc_ber'), 
                                  [FETCH_REQ => $sth->FETCH('jdbc_handle')],
                                  [FETCH_RESP => \@row]);
         if (shift @row) {  # row contains data
@@ -794,6 +834,7 @@ require 5.004;
         my ($sth) = shift;
         my ($method) = $AUTOLOAD;
         $method =~ s/.*://;  # method name starts out fully-qualified
+        $method =~ s/^jdbc_//;
         my (@parameters) = @_;
 
         # Try resetting errors.
@@ -817,6 +858,7 @@ require 5.004;
         my (@return_value);
         return undef unless
             _send_request($sth,
+                          $sth->FETCH('jdbc_socket'), $sth->FETCH('jdbc_ber'),
                           [STATEMENT_FUNC_REQ => [$sth->FETCH('jdbc_handle'),
                                                   $method,
                                                    \@parameters_with_types]],
@@ -919,6 +961,7 @@ require 5.004;
         my $handle = $sth->FETCH('jdbc_handle');
         my $resp;
         _send_request($sth,
+                      $sth->FETCH('jdbc_socket'), $sth->FETCH('jdbc_ber'),
                       [STATEMENT_DESTROY_REQ => $handle],
                       [STATEMENT_DESTROY_RESP => \$resp]);
     }
@@ -935,6 +978,7 @@ require 5.004;
         my @data;
         return undef unless
             _send_request($sth,
+                          $sth->FETCH('jdbc_socket'), $sth->FETCH('jdbc_ber'),
                           [GET_STATEMENT_PROPERTY_REQ =>
                            [INTEGER => $sth->FETCH('jdbc_handle'),
                             STRING => $attr]],
@@ -954,6 +998,7 @@ require 5.004;
         my $data;
         return 
             _send_request($sth,
+                          $sth->FETCH('jdbc_socket'), $sth->FETCH('jdbc_ber'),
                           [SET_STATEMENT_PROPERTY_REQ => 
                            [INTEGER => $sth->FETCH('jdbc_handle'),
                             STRING => $attr,

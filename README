@@ -1,7 +1,7 @@
 
 DBD::JDBC - JDBC proxy driver for the DBI module
 
-  Copyright 1999-2000 Vizdom Software, Inc. All Rights Reserved.
+  Copyright 1999-2001 Vizdom Software, Inc. All Rights Reserved.
   
   This program is free software; you can redistribute it and/or 
   modify it under the same terms as the Perl Kit, namely, under 
@@ -200,7 +200,7 @@ FOR MORE INFORMATION
 
   For general DBI information and questions, see the DBI home
   page at
-      http://www.symbolstone.org/technology/perl/DBI/index.html
+      http://dbi.perl.org/
 
-  To contact the author of this module, 
+  To contact the author of this module, send email to
       Gennis Emerson <gemerson@vizdom.com>

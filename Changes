@@ -1,5 +1,22 @@
 Changes for DBD::JDBC.
 
+May 2001
+        Version 0.64
+
+        Added support for arbitrary (string) JDBC connection
+        properties. 
+
+        Added support for "jdbc_" prefixes on method names used
+        in $h->func() calls as required by DBI. Unprefixed method
+        names are still supported in this release, though support
+        may be removed in a future release.
+
+        Changed the format of the connect message between the
+        client and server. This means that this version of the
+        client is not compatible with any older version of the
+        server. 
+
+
 June 2000
         Version 0.63
 

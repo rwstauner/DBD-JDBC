@@ -79,34 +79,82 @@ Example
 
 
 
+
 * rows
 
 The rows function behaves as described in the DBI
 specification. In particular, it does not return the number of
 rows in a result set until the entire result set has been read. 
 
-
-
-* Scrollable result sets
-
-The DBI interface does not support scrollable result sets. The
-BasisResultSet methods which support scrollable result sets are
-not available through the DBI driver.
+However, the number of rows in the result set is available after
+calling $sth->execute using $sth->func("ResultSet.getRowCount").
 
 
 
-* Checkin/checkout
+* BASIS-specific Connection methods
 
-These tasks must be done using the SQL extensions supported by
-the JDBC driver. The checkoutRow() and cancelRowCheckout()
-methods are not available through the DBI driver.
+The following BASIS-specific methods should now be available
+using $dbh->func. The values used below are examples.
+
+$dbh->func("tour_all", "setSchema");
+$schema = $dbh->func("getSchema");
+
+$wait = $dbh->func("getWait");
+$dbh->func([1 => SQL_BIT], "setWait");
+
+$formatted = $dbh->func("isOutputFormatted");
+$dbh->func([1 => SQL_BIT], "setOutputFormatted");
+
+$presenter = $dbh->func("getPresenter");
+$dbh->func("sys_plain", "setPresenter");
+
+This functionality can be used for standard JDBC methods as
+well. For example, 
+
+$dbh->func([1 => SQL_BIT], "setReadOnly");
 
 
 
-* Properties
+* BASIS-specific Statement methods
 
-The following BASIS-specific properties are not accessible
-through the DBI interface.
+The following BASIS-specific methods should now be available
+using $sth->func. The values used below are examples.
 
-  Wait, Schema, Converter, HistoryEnabled, TextOperator,
-  HitHighlighting, HitStartTag, HitEndTag
+$presenter = $sth->func("Statement.getConverter");
+$dbh->func("sys_blob_hard_indirect", "Statement.setConverter");
+
+$history = $dbh->func("Statement.isHistoryEnabled");
+$dbh->func([1 => SQL_BIT], "Statement.setHistoryEnabled");
+
+
+
+* BASIS-specific ResultSet methods
+
+The following BASIS-specific methods should now be available
+using $sth->func. The values used below are examples.
+
+$sth->func("ResultSet.checkoutRow");
+$sth->func("ResultSet.cancelRowCheckout");
+
+$tag = $sth->func("ResultSet.getHitStartTag");
+$sth->func("<strong>", "ResultSet.setHitStartTag");
+
+$tag = $sth->func("ResultSet.getHitEndTag");
+$sth->func("</strong>", "ResultSet.setHitEndTag");
+
+$highlighting = $sth->func("ResultSet.isHitHighlighting");
+$sth->func([1 => SQL_BIT], "ResultSet.setHitHighlighting");
+
+$size = $sth->func("ResultSet.getRowCount");
+
+
+Most of the JDBC 2.0 positioning and update methods implemented
+by the BASIS JDBC driver should also be available this way. 
+
+
+See the "Calling JDBC methods" section of the DBD::JDBC
+documentation for more information on the use of $sth->func, and
+the BASIS JDBC driver API documentation for a complete list of
+available methods.
+
+

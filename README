@@ -34,7 +34,13 @@ SUMMARY
 
   JDBC 1.22 drivers are currently supported. JDBC 2.0-compatible
   drivers are expected to work, but no JDBC 2.0 functionality is
-  exposed via DBD::JDBC.
+  explicitly exposed via DBD::JDBC. Public methods of the JDBC
+  Connection, Statement, ResultSet, and ResultSetMetaData
+  classes, including any public driver-specific methods not part
+  of the JDBC API, are exposed using reflection and the DBI
+  $h->func method. Only methods with primitive or String
+  parameters and return types are currently supported in this
+  way.
 
   This module also allows a Java application or servlet to create
   a JDBC connection and then exec a Perl script which can use
@@ -50,7 +56,7 @@ PREREQUISITES
 
       Perl 5.004_04 or higher
       Convert::BER 1.31
-      DBI 1.11 or higher
+      DBI 1.13 or higher
 
   
   In addition to Perl, the following must be available in order
@@ -161,6 +167,15 @@ INSTALLATION
     script is using in its attempt to connect.
 
 
+KNOWN BUGS
+
+  Oracle LOBs can't be read with this driver. This requires
+  either Oracle-specific functionality, a further extension to
+  the $h->func methods to support arbitrary objects, or support
+  for JDBC 2.0.
+
+  A problem has been reported reading many LONG values from Oracle. 
+
   
 NOT YET IMPLEMENTED
   DBI interface methods. 
@@ -174,7 +189,9 @@ NOT YET IMPLEMENTED
 
       $sth->bind_param_inout
 
-  Access to JDBC-specific functionality.
+  Access to JDBC-specific functionality. Some amount of JDBC
+  functionality is currently exposed using $h->func and Java
+  reflection.
 
 
 FOR MORE INFORMATION

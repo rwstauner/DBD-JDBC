@@ -1,5 +1,31 @@
 Changes for DBD::JDBC.
 
+June 2000
+        Version 0.63
+
+        Changed required version of DBI to 1.13 in order to have
+        access to the SQL_BIT constant (used to specify boolean
+        method parameters for func).
+
+        Added $h->func implementations for $dbh and $sth
+        objects. This implementation passes the method name and
+        parameters to the Java server. The server uses reflection
+        to call the requested method. The current implementation
+        only supports a limited set of types for parameters and
+        return values. Most object types are not supported.
+
+        Allow the driver to close Statement objects when
+        $sth->DESTROY is called.
+
+        Fixed, or at least altered, the behavior of the driver
+        when the JDBC driver doesn't provide a SQLSTATE value
+        in a SQLException. Previously, this problem caused DBI to
+        die. 
+
+        Reset the value of the jdbc_error attribute before
+        setting a new error.
+
+
 May 2000
         Version 0.62.
 

@@ -32,18 +32,21 @@ Finish implementing DBI interface methods
 
 
 
-Add driver-specific methods and attributes which provide access
-to elements of the JDBC interface not otherwise exposed via
-DBI. Currently, I'm thinking of trying to do this by adding a
-generic "func" message which uses reflection to find an
-appropriate method and call it. The advantage to this, if it
-works, is that it ought to provide access to driver-specific
-methods as well as JDBC interface methods.
+Extend the $h->func implementation to support arbitrary
+objects. My current idea is to return an object handle type to
+Perl and maintain an object pool on the server, but this isn't
+fully thought through. 
 
 
-Add support to the server for JDBC 2.0. This will only be useful
-after the Perl side has support for calling JDBC-specific
-functions.
+Add support to the server for JDBC 2.0. It might make sense to
+allow the user to switch between a JDBC 1.2 and a JDBC 2.0
+connection implementation; I don't know their driver, but surely
+they do.
+
+
+Write an Oracle test suite, on the theory that testing this
+beyond the "hello world" stage with a more mainstream driver
+can't be all bad.
 
 
 Add some sort of streaming behavior for long fields.

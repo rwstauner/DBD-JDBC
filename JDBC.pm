@@ -1,4 +1,4 @@
-# $Id: JDBC.pm,v 1.26 2000/05/08 03:25:53 gemerson Exp $
+# $Id: JDBC.pm,v 1.28 2000/07/06 04:42:25 gemerson Exp $
 #
 #  Copyright 1999-2000 Vizdom Software, Inc. All Rights Reserved.
 #  
@@ -22,9 +22,9 @@ require 5.004;
 
 {
     package DBD::JDBC;
-    use DBI 1.11;
+    use DBI 1.13;
     
-    $DBD::JDBC::VERSION = 0.62;
+    $DBD::JDBC::VERSION = 0.63;
     
     $DBD::JDBC::drh = undef;
     $DBD::JDBC::err = 0;
@@ -116,6 +116,7 @@ require 5.004;
                 return
                    $h->DBI::set_err(DBD::JDBC::ErrorMessages::ber_error($err));
             }
+            $h->{jdbc_error} = []; # Reset the error list.
             push @{$h->{jdbc_error}}, @errors;
             $h->trace_msg("Error: ".$errors[0]->{errstr}."\n", 3) if $debug;
             return $h->DBI::set_err($errors[0]->{err}, $errors[0]->{errstr}, 
@@ -323,6 +324,9 @@ require 5.004;
 
 {
     package DBD::JDBC::db;
+
+    use vars qw($AUTOLOAD);
+
     $imp_data_size = 0;
     $imp_data_size = 0; # Avoid -w warnings.
     use strict;
@@ -418,6 +422,54 @@ require 5.004;
         $dbh->FETCH('jdbc_socket')->close();
         return $result;
     }
+
+
+    # This is the func implementation. It expects the method name
+    # to be a valid java.sql.Connection method name. The
+    # parameter list may be empty if the method takes no
+    # arguments. Otherwise, parameters may be specified as
+    # scalars, if they should be mapped to java.lang.String
+    # objects, or as [value,type] pairs (array references) if the
+    # parameter type is something other than String. For example,
+    # $dbh->func([1 => SQL_BIT], "setAutoCommit") If the method
+    # returned void or null, this method will return
+    # undef. Otherwise, the return value of the Java method will
+    # be returned as a string.
+    sub AUTOLOAD {
+        my ($dbh) = shift;
+        my ($method) = $AUTOLOAD;
+        $method =~ s/.*://;  # method name starts out fully-qualified
+        my (@parameters) = @_;
+
+        # Try resetting errors.
+        $DBD::JDBC::err = 0;
+        $DBD::JDBC::errstr = "";
+        $DBD::JDBC::sqlstate = "";
+
+        # When we're done, parameters_with_types will be a list
+        # of alternating parameter value/JDBC type codes.
+        my @parameters_with_types = ();
+        my $param;
+        foreach $param (@parameters) {
+            if (ref $param) {
+                push @parameters_with_types, $param->[0], DBD::JDBC::st::_jdbc_type($param->[1]);
+            }
+            else {
+                push @parameters_with_types, $param, $DBD::JDBC::Types{VARCHAR};
+            }
+        }
+
+        my (@value);
+        return undef unless
+            _send_request($dbh,
+                          [CONNECTION_FUNC_REQ => [$method,
+                                                   \@parameters_with_types]],
+
+                          [CONNECTION_FUNC_RESP => \@value]); 
+                            
+        return $value[0];
+    }
+
 
     # This method is not implemented. 
     # Implementation notes: call
@@ -583,6 +635,7 @@ require 5.004;
     package DBD::JDBC::st;
     $imp_data_size = 0;
     $imp_data_size = 0; # Avoid -w warnings.
+    use vars qw($AUTOLOAD);
     use strict;
     use DBI qw(:sql_types);
 
@@ -720,6 +773,57 @@ require 5.004;
         $sth->STORE('Active' => 0);
         1;
     }
+
+
+
+    # This is the func implementation. It expects the method name
+    # to be prefixed with one of "ResultSet.", "Statement.", or
+    # "ResultSetMetaData." to indicate on which object the method
+    # should be called. The parameter list may be empty if the
+    # method takes no arguments. Otherwise, parameters may be
+    # specified as scalars, if they should be mapped to
+    # java.lang.String objects, or as [value,type] pairs (array
+    # references) if the parameter type is something other than
+    # String. For example, 
+    #  $sth->func("eno", [5003 => SQL_INTEGER], "ResultSet.updateInt");
+    # If the method returned void or null, this
+    # method will return undef. Otherwise, the return value of
+    # the Java method will be returned as a string.
+
+    sub AUTOLOAD {
+        my ($sth) = shift;
+        my ($method) = $AUTOLOAD;
+        $method =~ s/.*://;  # method name starts out fully-qualified
+        my (@parameters) = @_;
+
+        # Try resetting errors.
+        $DBD::JDBC::err = 0;
+        $DBD::JDBC::errstr = "";
+        $DBD::JDBC::sqlstate = "";
+        
+        # When we're done, parameters_with_types will be a list
+        # of alternating parameter value/JDBC type codes.
+        my @parameters_with_types = ();
+        my $param;
+        foreach $param (@parameters) {
+            if (ref $param) {
+                push @parameters_with_types, $param->[0], DBD::JDBC::st::_jdbc_type($param->[1]);
+            }
+            else {
+                push @parameters_with_types, $param, $DBD::JDBC::Types{VARCHAR};
+            }
+        }
+
+        my (@return_value);
+        return undef unless
+            _send_request($sth,
+                          [STATEMENT_FUNC_REQ => [$sth->FETCH('jdbc_handle'),
+                                                  $method,
+                                                   \@parameters_with_types]],
+                          [STATEMENT_FUNC_RESP => \@return_value]);
+        return $return_value[0];
+    }
+
 
 
     sub STORE {
@@ -867,6 +971,7 @@ require 5.004;
         return $DBD::JDBC::Types{VARBINARY}     if $dbi_type == SQL_VARBINARY;
         return $DBD::JDBC::Types{LONGVARBINARY} if $dbi_type == SQL_LONGVARBINARY;
 
+        return $DBD::JDBC::Types{BIT}           if $dbi_type == SQL_BIT;
         return $DBD::JDBC::Types{INTEGER}       if $dbi_type == SQL_INTEGER;
         return $DBD::JDBC::Types{NUMERIC}       if $dbi_type == SQL_NUMERIC;
         return $DBD::JDBC::Types{DECIMAL}       if $dbi_type == SQL_DECIMAL;
@@ -898,6 +1003,7 @@ require 5.004;
         return SQL_LONGVARCHAR if $jdbc_type == $DBD::JDBC::Types{LONGVARCHAR};
         return SQL_VARBINARY   if $jdbc_type == $DBD::JDBC::Types{VARBINARY};
         return SQL_LONGVARBINARY if $jdbc_type == $DBD::JDBC::Types{LONGVARBINARY}; 
+        return SQL_BIT         if $jdbc_type == $DBD::JDBC::Types{BIT}; 
         return SQL_INTEGER     if $jdbc_type == $DBD::JDBC::Types{INTEGER}; 
         return SQL_NUMERIC     if $jdbc_type == $DBD::JDBC::Types{NUMERIC}; 
         return SQL_DECIMAL     if $jdbc_type == $DBD::JDBC::Types{DECIMAL}; 
@@ -925,7 +1031,7 @@ require 5.004;
     # but not documented.
     #
     # To add a new message type
-    #    - add the reqest and response tag numbers
+    #    - add the request and response tag numbers
     #    - add the type definitions to the call to define()
     # In the Java source,
     #    - create classes for the objects
@@ -977,6 +1083,15 @@ require 5.004;
     sub JDBC_HASH()                            { 0x1B }
 
     sub JDBC_ERROR()                           { 0x1C }
+
+    sub JDBC_CONNECTION_FUNC_REQ()             { 0x1D }
+    sub JDBC_CONNECTION_FUNC_RESP()            { 0x1D + 1000 }
+
+    # Either Convert::BER or the Java BER classes are failing
+    # around 1E and 1F. Just skip those cases.
+
+    sub JDBC_STATEMENT_FUNC_REQ()              { 0x20 }
+    sub JDBC_STATEMENT_FUNC_RESP()             { 0x20 + 1000 }
 
     # Define name/type/tag triplets.
 
@@ -1074,6 +1189,24 @@ require 5.004;
 
  [ERROR => $SEQUENCE,
   ber_tag(BER_APPLICATION | BER_CONSTRUCTOR, JDBC_ERROR())],  
+
+ # I was going to have the func response objects just be
+ # SEQUENCEs. However, when I tried to read the response data
+ # with [XXX_FUNC_RESP => [ OPTIONAL => STRING, OPTIONAL => NULL]
+ # (syntax approximate), I kept getting "buffer not empty"
+ # errors, so I gave up and went to MYSEQUENCE. The dumps of the
+ # buffers looked fine.
+
+ [CONNECTION_FUNC_REQ  => $SEQUENCE, 
+  ber_tag(BER_APPLICATION | BER_CONSTRUCTOR, JDBC_CONNECTION_FUNC_REQ())],
+ [CONNECTION_FUNC_RESP => 'MYSEQUENCE', 
+  ber_tag(BER_APPLICATION | BER_CONSTRUCTOR, JDBC_CONNECTION_FUNC_RESP())],
+
+ [STATEMENT_FUNC_REQ  => $SEQUENCE, 
+  ber_tag(BER_APPLICATION | BER_CONSTRUCTOR, JDBC_STATEMENT_FUNC_REQ())],
+ [STATEMENT_FUNC_RESP => 'MYSEQUENCE',
+  ber_tag(BER_APPLICATION | BER_CONSTRUCTOR, JDBC_STATEMENT_FUNC_RESP())],
+
  );
 
 }
@@ -1212,6 +1345,83 @@ require 5.004;
         1;
     }
 }
+
+
+
+# A func request consists of a sequence in which the first
+# element is a method name and the remaining elements are
+# (alternating) values and typecodes.
+
+{
+    package DBD::JDBC::BER::CONNECTION_FUNC_REQ;
+
+    # Modified from Convert::BER::SEQUENCE;
+    sub pack_array {
+        my ($self, $ber, $arg) = @_;  # $arg is an array ref
+        my ($method, $param_list) = @$arg;
+        
+        # Convert::BER::_encode should have packed the tag value already.
+        # Build up the message body using a new BER object.
+        my $ber2 = $ber->new;
+        $ber2->_encode([STRING => $method]);  # method name
+        
+        my $i = 0;
+        while ($i < scalar(@$param_list)) {
+            my ($value, $type) = ($param_list->[$i], $param_list->[$i+1]);
+            $i += 2;
+            
+            # Parameters may be null, but a type will always be specified.
+            defined $value 
+                ? $ber2->_encode([STRING => $value]) 
+                    : $ber2->_encode([NULL => 0]);
+            $ber2->_encode([INTEGER => $type]);
+        }
+        
+        $ber->pack_length(CORE::length($ber2->[ Convert::BER::_BUFFER() ]));
+        $ber->[ Convert::BER::_BUFFER() ] .= $ber2->[ Convert::BER::_BUFFER() ];
+        1;
+    }
+}
+
+
+# A func request consists of a sequence in which the first
+# element is a method name, the second element is a statement
+# handle, and the remaining elements are (alternating) values and
+# typecodes.
+{
+    package DBD::JDBC::BER::STATEMENT_FUNC_REQ;
+
+    # Modified from Convert::BER::SEQUENCE;
+    sub pack_array {
+        my ($self, $ber, $arg) = @_;  # $arg is an array ref
+        my ($handle, $method, $param_list) = @$arg;
+        
+        # Convert::BER::_encode should have packed the tag value already.
+        # Build up the message body using a new BER object.
+        my $ber2 = $ber->new;
+        $ber2->_encode([INTEGER => $handle]);  # handle
+        $ber2->_encode([STRING => $method]);  # method name
+        
+        my $i = 0;
+        while ($i < scalar(@$param_list)) {
+            my ($value, $type) = ($param_list->[$i], $param_list->[$i+1]);
+            $i += 2;
+            
+            # Parameters may be null, but a type will always be specified.
+            defined $value 
+                ? $ber2->_encode([STRING => $value]) 
+                    : $ber2->_encode([NULL => 0]);
+            $ber2->_encode([INTEGER => $type]);
+        }
+        
+        $ber->pack_length(CORE::length($ber2->[ Convert::BER::_BUFFER() ]));
+        $ber->[ Convert::BER::_BUFFER() ] .= $ber2->[ Convert::BER::_BUFFER() ];
+        1;
+    }
+}
+
+
+
 
 ## ====================
 

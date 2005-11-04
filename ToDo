@@ -32,7 +32,7 @@ Finish implementing DBI interface methods
 
 
 
-Extend the $h->func implementation to support arbitrary
+Extend the $h->jdbc_func implementation to support arbitrary
 objects. My current idea is to return an object handle type to
 Perl and maintain an object pool on the server, but this isn't
 fully thought through. 

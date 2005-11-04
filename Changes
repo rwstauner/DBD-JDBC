@@ -1,5 +1,55 @@
 Changes for DBD::JDBC.
 
+November 2005
+        Version 0.67
+
+        This is DBD::JDBC 0.66 with a few further updates based
+        on reviewing the DBI 1.48 documentation. 
+
+        Fixed the local build process to synchronize the
+        DBD::JDBC version with the server version. 
+
+        Added support for $sth->{ParamValues}. (DBI 1.28)
+
+        Removed locally-defined err, errstr, and state
+        variables. (DBI 1.33)
+
+        Updated NUM_OF_FIELDS behavior. (DBI 1.42)
+
+
+January 2005
+        Version 0.66
+ 
+        Unofficial release, not sent to CPAN.
+        Requires edits to DBI.pm.
+
+        Updated DBD::JDBC to work with DBI 1.46. No work has been
+        done to add support for DBI features added since the last
+        DBI release with which this driver was certified. "Works
+        with DBI 1.46" means that the test suite now passes
+        again.
+
+        This release uses DBI's install_method method to add
+        jdbc_func. Use of install_method requires that the
+        driver-specific prefix be registered with DBI. This has
+        not been done as of DBI 1.46, so until a DBI release is
+        made with the prefix registered, it is necessary to edit
+        DBI.pm to add the jdbc_ prefix to $dbd_prefix_registry. 
+
+        Scripts which used $h->func to call JDBC methods must now
+        use $h->jdbc_func. Error handling with jdbc_func follows
+        the standard DBI model, so it's no longer necessary to
+        check for errors explicitly as it was when using func.
+
+        Removed references to the DBI constant SQL_BIGINT, which
+        was removed in an earlier DBI release. Scripts which need
+        to use SQL_BIGINT should import the constant from DBD::JDBC: 
+
+          use DBI qw(:sql_types);
+          use DBD::JDBC qw(:sql_types);
+
+        
+
 May 2001
         Version 0.64
 

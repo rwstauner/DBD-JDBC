@@ -9,6 +9,7 @@ ToDo
 dbd_jdbc.jar
 example/PerlServlet.java
 example/testPerlServlet.pl
+lib/Bundle/DBD/JDBC.pm
 t/01_env.t
 t/02_connect.t
 t/basis.t

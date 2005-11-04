@@ -24,12 +24,10 @@ Example
 
 * Compound fields
 
-In the BASIS JDBC driver build 41 or later, all subfields of
-compound fields will be returned by ResultSet.getString(). Using
-DBD::JDBC, $sth->fetch will return the same delimited string
-returned by the JDBC driver. The subfield delimiter is "\r\n".
-(You can find the build number of the JDBC driver by running
-"java com.opentext.basis.jdbc.BasisDriver" at a command line.)
+All subfields of compound fields will be returned by
+ResultSet.getString(). Using DBD::JDBC, $sth->fetch will return
+the same delimited string returned by the JDBC driver. The
+subfield delimiter is "\r\n".
 
 You may update a compound field by setting its value to a string
 of subfield values delimited by "\r\n".
@@ -87,65 +85,65 @@ specification. In particular, it does not return the number of
 rows in a result set until the entire result set has been read. 
 
 However, the number of rows in the result set is available after
-calling $sth->execute using $sth->func("ResultSet.getRowCount").
+calling $sth->execute using $sth->jdbc_func("ResultSet.getRowCount").
 
 
 
 * BASIS-specific Connection methods
 
 The following BASIS-specific methods should now be available
-using $dbh->func. The values used below are examples.
+using $dbh->jdbc_func. The values used below are examples.
 
-$dbh->func("tour_all", "setSchema");
-$schema = $dbh->func("getSchema");
+$dbh->jdbc_func("tour_all", "setSchema");
+$schema = $dbh->jdbc_func("getSchema");
 
-$wait = $dbh->func("getWait");
-$dbh->func([1 => SQL_BIT], "setWait");
+$wait = $dbh->jdbc_func("getWait");
+$dbh->jdbc_func([1 => SQL_BIT], "setWait");
 
-$formatted = $dbh->func("isOutputFormatted");
-$dbh->func([1 => SQL_BIT], "setOutputFormatted");
+$formatted = $dbh->jdbc_func("isOutputFormatted");
+$dbh->jdbc_func([1 => SQL_BIT], "setOutputFormatted");
 
-$presenter = $dbh->func("getPresenter");
-$dbh->func("sys_plain", "setPresenter");
+$presenter = $dbh->jdbc_func("getPresenter");
+$dbh->jdbc_func("sys_plain", "setPresenter");
 
 This functionality can be used for standard JDBC methods as
 well. For example, 
 
-$dbh->func([1 => SQL_BIT], "setReadOnly");
+$dbh->jdbc_func([1 => SQL_BIT], "setReadOnly");
 
 
 
 * BASIS-specific Statement methods
 
 The following BASIS-specific methods should now be available
-using $sth->func. The values used below are examples.
+using $sth->jdbc_func. The values used below are examples.
 
-$presenter = $sth->func("Statement.getConverter");
-$dbh->func("sys_blob_hard_indirect", "Statement.setConverter");
+$presenter = $sth->jdbc_func("Statement.getConverter");
+$dbh->jdbc_func("sys_blob_hard_indirect", "Statement.setConverter");
 
-$history = $dbh->func("Statement.isHistoryEnabled");
-$dbh->func([1 => SQL_BIT], "Statement.setHistoryEnabled");
+$history = $dbh->jdbc_func("Statement.isHistoryEnabled");
+$dbh->jdbc_func([1 => SQL_BIT], "Statement.setHistoryEnabled");
 
 
 
 * BASIS-specific ResultSet methods
 
 The following BASIS-specific methods should now be available
-using $sth->func. The values used below are examples.
+using $sth->jdbc_func. The values used below are examples.
 
-$sth->func("ResultSet.checkoutRow");
-$sth->func("ResultSet.cancelRowCheckout");
+$sth->jdbc_func("ResultSet.checkoutRow");
+$sth->jdbc_func("ResultSet.cancelRowCheckout");
 
-$tag = $sth->func("ResultSet.getHitStartTag");
-$sth->func("<strong>", "ResultSet.setHitStartTag");
+$tag = $sth->jdbc_func("ResultSet.getHitStartTag");
+$sth->jdbc_func("<strong>", "ResultSet.setHitStartTag");
 
-$tag = $sth->func("ResultSet.getHitEndTag");
-$sth->func("</strong>", "ResultSet.setHitEndTag");
+$tag = $sth->jdbc_func("ResultSet.getHitEndTag");
+$sth->jdbc_func("</strong>", "ResultSet.setHitEndTag");
 
-$highlighting = $sth->func("ResultSet.isHitHighlighting");
-$sth->func([1 => SQL_BIT], "ResultSet.setHitHighlighting");
+$highlighting = $sth->jdbc_func("ResultSet.isHitHighlighting");
+$sth->jdbc_func([1 => SQL_BIT], "ResultSet.setHitHighlighting");
 
-$size = $sth->func("ResultSet.getRowCount");
+$size = $sth->jdbc_func("ResultSet.getRowCount");
 
 
 Most of the JDBC 2.0 positioning and update methods implemented
@@ -153,8 +151,8 @@ by the BASIS JDBC driver should also be available this way.
 
 
 See the "Calling JDBC methods" section of the DBD::JDBC
-documentation for more information on the use of $sth->func, and
-the BASIS JDBC driver API documentation for a complete list of
-available methods.
+documentation for more information on the use of $sth->jdbc_func,
+and the BASIS JDBC driver API documentation for a complete list
+of available methods.
 
 

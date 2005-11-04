@@ -15,10 +15,10 @@ DBD::JDBC - JDBC proxy driver for the DBI module
 
 =head1 REQUIRES
 
-  Perl 5.004 or higher
-  DBI 1.13 or higher
+  Perl 5.8.6 or higher
+  DBI 1.48 or higher
   Convert::BER 1.31
-  Java Virtual Machine compatible with JDK 1.1
+  Java Virtual Machine compatible with JDK 1.3
   A JDBC driver
 
 
@@ -34,7 +34,7 @@ multiple simultaneous connections.
 This driver currently supports JDBC drivers which implement the
 JDBC 1.22 interface.  JDBC 2.0-compatible drivers are expected to
 work, but no JDBC 2.0 functionality is explicitly exposed via
-DBD::JDBC. The DBI C<$h-E<gt>func> method exposes additional JDBC
+DBD::JDBC. The C<$h-E<gt>jdbc_func> method exposes additional JDBC
 and driver-specific methods. Only Java methods with primitive or
 String parameters and return types are currently supported in
 this way.
@@ -226,7 +226,7 @@ any other connection properties.
 
 =head2 Calling JDBC methods
 
-JDBC methods are exposed using the DBI C<$h-E<gt>func> method and Java
+JDBC methods are exposed using the C<$h-E<gt>jdbc_func> method and Java
 reflection. This feature is not intended to replace any existing
 DBI methods, merely to provide access to JDBC-specific methods
 with no DBI equivalent. Reflection, rather than explicit methods
@@ -235,19 +235,19 @@ allow access to driver-specific methods not in the JDBC API.
 
 The general syntax is
 
-  $h->func(parameter, ..., jdbc_<jdbc_method_name>);
+  $h->jdbc_func(parameter, ..., <jdbc_method_name>);
 
 For example, 
 
-  $ret = $dbh->func("jdbc_getAutoCommit");
-  $ret = $sth->func("mycursor", "jdbc_Statement.setCursorName");
+  $ret = $dbh->jdbc_func("getAutoCommit");
+  $ret = $sth->jdbc_func("mycursor", "Statement.setCursorName");
 
-In a previous release of this driver, the C<jdbc_> prefix on the
-method names was not used. This prefix is required by DBI. It is
-optional in this release; both the prefixed and non-prefixed
-versions of the method names will work. Support for non-prefixed
-JDBC method names will be removed in a future release of
-DBD::JDBC. 
+The driver-specific method C<jdbc_func> replaces the previous use
+of the standard DBI method C<func> for calling JDBC
+methods. Since C<jdbc_func> is a driver-specific method, the
+C<jdbc_> prefix previously required on the method name argument
+is no longer required. Use of the C<jdbc_> prefix on the method
+name is still supported.
 
 The following limitations apply: 
 
@@ -267,7 +267,7 @@ called. See below for more details.
 
 DBD::JDBC doesn't know which methods are being called when
 reflection is used. This means that interleaving DBI methods and
-calls to JDBC methods using C<func> may leave DBD::JDBC in an
+calls to JDBC methods using C<jdbc_func> may leave DBD::JDBC in an
 inconsistent state. One example of this is C<$sth-E<gt>rows>: if you've
 called C<ResultSet.next> directly, rather than using C<$sth-E<gt>fetch>,
 the row count will not accurately reflect the rows in the result
@@ -280,13 +280,13 @@ ResultSet, and ResultSetMetaData objects.
 
 =back
 
-The JDBC method name is used as the func method name. Parameters
+The JDBC method name is used as the jdbc_func method name. Parameters
 are passed as strings by default. To pass parameters of other
 types, pass the parameter as reference to an array in which the
 first element is the parameter and the second is one of the DBI
 SQL_XXX typecodes. For example,
 
-    $h->func("string parameter", [11 => SQL_INTEGER], 
+    $h->jdbc_func("string parameter", [11 => SQL_INTEGER], 
              [1 => SQL_BIT], "method_name");
 
 It is very important to use the correct typecodes for the actual
@@ -312,7 +312,7 @@ values to Java types.
     SQL_TINYINT            TINYINT                    byte
     SQL_SMALLINT           SMALLINT                   short
     SQL_INTEGER            INTEGER                    int
-    SQL_BIGINT             BIGINT                     long
+    DBD::JDBC::SQL_BIGINT  BIGINT                     long
     SQL_REAL               REAL                       float
     SQL_FLOAT              FLOAT                      double
     SQL_DOUBLE             DOUBLE                     double
@@ -341,7 +341,7 @@ used.
 is optional.)
 
 
-Possible return values from C<$h-E<gt>func> are C<undef> if the
+Possible return values from C<$h-E<gt>jdbc_func> are C<undef> if the
 Java method returned C<null> or had a C<void> return type, 1 or 0
 if the Java method had a C<boolean> return type, or a scalar for
 any other return type (the C<Object> returned by
@@ -353,34 +353,29 @@ API. Any public method defined by your JDBC driver on the
 available objects, with parameters and return type as described
 above, may be called.
 
-B<Important>: You must check for errors explicitly after calling
-C<func>. For example, 
- 
-
-    $h->func("method");
-    if ($h->err) { 
-       ## handle error 
-    } 
+C<jdbc_func> is made available using DBI's C<install_method>
+method. This means that errors are handled in the standard DBI
+manner, not the way they're handled for C<$h-E<gt>func>.
 
 
 B<Connection methods>
 
 To call JDBC methods on the JDBC Connection object, use the
-C<func> method on the C<$dbh> handle. 
+C<jdbc_func> method on the C<$dbh> handle. 
 
 Examples
 
   
-    $ret = $dbh->func("jdbc_getAutoCommit");
-    $dbh->func([1 => SQL_BIT], "jdbc_setAutoCommit");
-    $ret = $dbh->func("select * from client", "jdbc_nativeSQL");
-    $dbh->func([4 => SQL_INTEGER], "jdbc_setTransactionIsolation");
+    $ret = $dbh->jdbc_func("jdbc_getAutoCommit");
+    $dbh->jdbc_func([1 => SQL_BIT], "jdbc_setAutoCommit");
+    $ret = $dbh->jdbc_func("select * from client", "jdbc_nativeSQL");
+    $dbh->jdbc_func([4 => SQL_INTEGER], "jdbc_setTransactionIsolation");
      
 
 B<Statement, ResultSet, and ResultSetMetaData methods>
 
 To call JDBC methods on the JDBC Statement, ResultSet, and
-ResultSetMetaData objects, use the C<func> method on the C<$sth>
+ResultSetMetaData objects, use the C<jdbc_func> method on the C<$sth>
 handle and prefix the method name with one of the listed
 interface names. You may use either Statement or
 PreparedStatement to indicate the current PreparedStatement
@@ -392,21 +387,21 @@ after C<$sth-E<gt>execute> has been called.
 Examples
 
 
-    $ret = $sth->func("jdbc_Statement.getMaxFieldSize");
-    $sth1->func("mycursor", "jdbc_Statement.setCursorName");
-    $sth1->func([22 => SQL_INTEGER], "jdbc_Statement.setMaxFieldSize");
+    $ret = $sth->jdbc_func("jdbc_Statement.getMaxFieldSize");
+    $sth1->jdbc_func("mycursor", "jdbc_Statement.setCursorName");
+    $sth1->jdbc_func([22 => SQL_INTEGER], "jdbc_Statement.setMaxFieldSize");
 
-    $ret = $sth1->func("jdbc_ResultSet.next");
-    $ret = $sth1->func("cname", "jdbc_ResultSet.getString");
-    $ret = $sth2->func("eno", [5003 => SQL_INTEGER], "jdbc_ResultSet.updateInt");
+    $ret = $sth1->jdbc_func("jdbc_ResultSet.next");
+    $ret = $sth1->jdbc_func("cname", "jdbc_ResultSet.getString");
+    $ret = $sth2->jdbc_func("eno", [5003 => SQL_INTEGER], "jdbc_ResultSet.updateInt");
 
-    $ret = $sth1->func([1 => SQL_INTEGER], "jdbc_ResultSetMetaData.getSchemaName");
+    $ret = $sth1->jdbc_func([1 => SQL_INTEGER], "jdbc_ResultSetMetaData.getSchemaName");
 
 
 B<Notes>
 
 If for some reason you reach the end of a ResultSet using
-C<$sth-E<gt>func("ResultSet.next")> rather than one of the standard DBI
+C<$sth-E<gt>jdbc_func("ResultSet.next")> rather than one of the standard DBI
 methods (C<fetch>, etc.), the DBI statement handle will continue
 to think that it's active. You must call C<$sth-E<gt>finish> explicitly
 in this case.
@@ -414,14 +409,14 @@ in this case.
 Be aware of which JDBC methods are called by the standard DBI
 methods. For example, C<$sth-E<gt>fetch> calls C<next> and reads all the
 columns in the current row. With some JDBC drivers, you will not
-be able to call $sth->fetch followed by C<$sth-E<gt>func("column_name",
+be able to call $sth->fetch followed by C<$sth-E<gt>jdbc_func("column_name",
 "ResultSet.getString")> because all the data for the row has already been
 read. 
 
 
 If you are using a JDBC driver with scrollable result sets,
 please note that support for such is provided purely through
-C<func>, not through any explicit DBD::JDBC support. This means
+C<jdbc_func>, not through any explicit DBD::JDBC support. This means
 that a loop over the set, such as
 
     while ($row = $sth->fetch()) { 
@@ -430,7 +425,7 @@ that a loop over the set, such as
 
 will cause DBD::JDBC to mark the statement handle as inactive at
 the end of the loop (C<$sth-E<gt>{Active}> will be false). You can still
-use C<func> to operate on the underlying ResultSet, but you can't
+use C<jdbc_func> to operate on the underlying ResultSet, but you can't
 continue to use any DBI method which requires that the statement
 handle be active. The following sequence seems to work, though
 perhaps it shouldn't: 
@@ -438,7 +433,7 @@ perhaps it shouldn't:
     while ($row = $sth->fetch()) { 
         # do something
     }
-    $sth->func("ResultSet.beforeFirst");
+    $sth->jdbc_func("ResultSet.beforeFirst");
     while ($row = $sth->fetch()) { 
         # do something else
     }
@@ -458,7 +453,7 @@ sufficient. However, if you find that statement handles are not
 being destroyed quickly enough, or you are maintaining a
 collection of statements for repeated use, you may choose to
 close the ResultSet associated with the Statement explicitly
-using C<func>. Closing the ResultSet will not prevent you from
+using C<jdbc_func>. Closing the ResultSet will not prevent you from
 executing the statement again, but it will release any database
 resources held by the ResultSet.
 
@@ -471,7 +466,7 @@ Typical usage:
     }
     # At this point, the statement handle is no longer active, but
     # the ResultSet still exists on the server.
-    $sth->func("ResultSet.close");
+    $sth->jdbc_func("ResultSet.close");
 
 
 DBD::JDBC does not close ResultSet objects when C<$sth-E<gt>finish> is
@@ -790,7 +785,7 @@ error to be reported, since no ResultSet exists.
 
 =item Error code 14
 
-An unknown class name was passed to C<$sth-E<gt>func>.
+An unknown class name was passed to C<$sth-E<gt>jdbc_func>.
 
 =item Error code 15
 
@@ -848,7 +843,7 @@ Gennis Emerson <gemerson@vizdom.com>
 
 =head1 COPYRIGHT
 
-Copyright 1999-2001 Vizdom Software, Inc. All Rights Reserved.
+Copyright 1999-2001,2005 Vizdom Software, Inc. All Rights Reserved.
   
 This program is free software; you can redistribute it and/or 
 modify it under the same terms as the Perl Kit, namely, under 

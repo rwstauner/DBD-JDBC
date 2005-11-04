@@ -1,6 +1,6 @@
-# $Id: JDBC.pm,v 1.30 2001/05/04 04:09:06 gemerson Exp $
+# $Id: JDBC.pm,v 1.37 2005/11/02 23:02:20 gemerson Exp $
 #
-#  Copyright 1999-2001 Vizdom Software, Inc. All Rights Reserved.
+#  Copyright 1999-2001,2005 Vizdom Software, Inc. All Rights Reserved.
 #  
 #  This program is free software; you can redistribute it and/or 
 #  modify it under the same terms as the Perl Kit, namely, under 
@@ -18,34 +18,38 @@
 # either the GNU General Public License or the Artistic License
 # for more details.
 
-require 5.004;
+require 5.8.0;
 
 {
     package DBD::JDBC;
-    use DBI 1.13;
-    
-    $DBD::JDBC::VERSION = 0.64;
+    use DBI 1.48;
+    require Exporter; 
+    @ISA = qw(Exporter); 
+    %EXPORT_TAGS = ( sql_types => [ qw( SQL_BIGINT ) ], ); 
+    @EXPORT_OK = qw(SQL_BIGINT);
+
+    use vars qw($methods_installed); 
+
+    $DBD::JDBC::VERSION = 0.67;
     
     $DBD::JDBC::drh = undef;
-    $DBD::JDBC::err = 0;
-    $DBD::JDBC::errstr = "";
-    $DBD::JDBC::sqlstate = "";
-
 
     # Driver handle constructor. This is pretty much straight
     # from the DBD doc.
     sub driver {
         return $drh if $drh;
         my($class, $attr) = @_;
+        DBI->setup_driver('DBD::JDBC');
         $class .= "::dr";
         ($drh) = DBI::_new_drh($class, {
             'Name' => 'JDBC',
             'Version' => $VERSION,
-            'Err' => \$DBD::JDBC::err,
-            'Errstr' => \$DBD::JDBC::errstr,
-            'State' => \$DBD::JDBC::sqlstate,
             'Attribution' => "DBD::JDBC $VERSION by Gennis Emerson",
         });
+        if (!$methods_installed++) {
+            DBD::JDBC::db->install_method('jdbc_func', {});
+            DBD::JDBC::st->install_method('jdbc_func', {});
+        }
         $drh;
     }
 
@@ -82,7 +86,7 @@ require 5.004;
     #   $decode_list: an array reference containing the arguments for
     #                 the BER decode method
     #
-    # returns: true on success, false (and calls DBI::_set_err) on failure
+    # returns: true on success, false (and calls $h->set_err) on failure
     sub _send_request { 
         my ($h, $socket, $ber, $encode_list, $decode_list) = @_;
         my $debug = $h->trace();
@@ -95,12 +99,12 @@ require 5.004;
         local($SIG{PIPE}) = "IGNORE";
         $h->trace_msg("Sending request to server\n", 3) if $debug;
         $ber->write($socket); 
-        return $h->DBI::set_err(DBD::JDBC::ErrorMessages::send_error($@))
+        return $h->set_err(DBD::JDBC::ErrorMessages::send_error($@))
             if ($@);
 
         $h->trace_msg("Listening for response\n", 3) if $debug;
         $ber->read($socket);
-        return $h->DBI::set_err(DBD::JDBC::ErrorMessages::recv_error($@))
+        return $h->set_err(DBD::JDBC::ErrorMessages::recv_error($@))
             if $@;
         $h->trace_msg("Received response from server\n", 3) if $debug;
 
@@ -115,12 +119,12 @@ require 5.004;
                     if $debug;
                 $ber->[ Convert::BER::_ERROR() ] = "";
                 return
-                   $h->DBI::set_err(DBD::JDBC::ErrorMessages::ber_error($err));
+                   $h->set_err(DBD::JDBC::ErrorMessages::ber_error($err));
             }
             $h->{jdbc_error} = []; # Reset the error list.
             push @{$h->{jdbc_error}}, @errors;
             $h->trace_msg("Error: ".$errors[0]->{errstr}."\n", 3) if $debug;
-            return $h->DBI::set_err($errors[0]->{err}, $errors[0]->{errstr}, 
+            return $h->set_err($errors[0]->{err}, $errors[0]->{errstr}, 
                                     substr($errors[0]->{state}, 0, 5));
         }
         else {
@@ -133,14 +137,14 @@ require 5.004;
                     if $debug;
                 $ber->[ Convert::BER::_ERROR() ] = "";
                 return 
-                   $h->DBI::set_err(DBD::JDBC::ErrorMessages::ber_error($err));
+                   $h->set_err(DBD::JDBC::ErrorMessages::ber_error($err));
             }
             return 1;
         }
     }
 
 
-    # JDBC 1.2 constants. Since these seem to be based on values
+    # JDBC constants. Since these seem to be based on values
     # from the SQL standard, I don't feel too bad about
     # hard-coding them here.
     %DBD::JDBC::Types = (NULL => 0,
@@ -164,7 +168,19 @@ require 5.004;
                          TIMESTAMP => 93,
                          BIT => -7,
                          OTHER => 1111,
-                         );
+                         JAVA_OBJECT => 2000,
+                         DISTINCT => 2001,
+                         STRUCT => 2002,
+                         ARRAY => 2003,
+                         BLOB => 2004, 
+                         CLOB => 2005, 
+                         REF => 2006,
+              );
+
+    # DBI no longer defines this value due to a lack of desire to
+    # choose between SQL and ODBC. Since JDBC uses it, we need to
+    # define it separately.
+    sub SQL_BIGINT() { -5 };
 }
 
 
@@ -237,13 +253,13 @@ require 5.004;
         else {
             %properties = ();
         }
-        return $drh->DBI::set_err(
+        return $drh->set_err(
                   DBD::JDBC::ErrorMessages::missing_dsn_component('hostname'))
             unless $hostname;
-        return $drh->DBI::set_err(
+        return $drh->set_err(
                   DBD::JDBC::ErrorMessages::missing_dsn_component('port'))
             unless $port;
-        return $drh->DBI::set_err(
+        return $drh->set_err(
                   DBD::JDBC::ErrorMessages::missing_dsn_component('url'))
             unless $url;
 
@@ -252,7 +268,7 @@ require 5.004;
                                            PeerPort => $port,
                                            Proto => 'tcp');
 
-        return $drh->DBI::set_err(DBD::JDBC::ErrorMessages::socket_error($@)) 
+        return $drh->set_err(DBD::JDBC::ErrorMessages::socket_error($@)) 
             if !$socket;
 
         my ($ber) = new DBD::JDBC::BER;
@@ -270,7 +286,7 @@ require 5.004;
 
 
         # Create $dbh after we know connect succeeded. If this
-        # method fails using DBI::set_err after $dbh has been
+        # method fails while using $h->set_err after $dbh has been
         # created, and the calling script checks for errors using
         # $DBI::{err,errstr,state} in a separate statement from
         # the call to connect, the undefined $dbh will somehow be
@@ -301,6 +317,13 @@ require 5.004;
     sub data_sources {
         ();
     }
+
+
+    # Added in DBI 1.42. Not currently implemented here.
+    sub parse_trace_flag {
+        my ($flag) = shift;
+        return DBI->parse_trace_flag($flag);
+    } 
 
 
     # All cached database handles will be disconnected. The
@@ -353,7 +376,6 @@ require 5.004;
 {
     package DBD::JDBC::db;
 
-    use vars qw($AUTOLOAD);
 
     $imp_data_size = 0;
     $imp_data_size = 0; # Avoid -w warnings.
@@ -375,16 +397,26 @@ require 5.004;
                           [PREPARE_REQ => $statement],
                           [PREPARE_RESP => \$statement_handle]);
         
+        my $param_count = _count_params($statement); 
         my $sth = DBI::_new_sth($dbh, {
             'Statement' => $statement,
-            'NUM_OF_PARAMS' => _count_params($statement),
-            'NUM_OF_FIELDS' => 0,
+            'NUM_OF_PARAMS' => $param_count,
+            'NUM_OF_FIELDS' => undef,
         });
 
         $sth->STORE('jdbc_handle' => $statement_handle);
         $sth->STORE('jdbc_socket' => $dbh->FETCH('jdbc_socket'));
         $sth->STORE('jdbc_ber' => $dbh->FETCH('jdbc_ber'));
         $sth->STORE('jdbc_rowcount' => -1);
+
+        ## Set up ParamValues (DBI 1.28). Initialize the keys to the
+        ## parameter numbers (if any).
+        $sth->STORE('jdbc_params', {}); 
+        $sth->STORE('jdbc_params_types', {}); 
+        for my $i (1..$param_count) { 
+            $sth->{'jdbc_params'}->{$i} = undef; 
+            $sth->{'jdbc_params_types'}->{$i} = undef; 
+        }
 
         # Copy the current value of inherited properties to the server.
         $sth->STORE('LongReadLen' => $dbh->FETCH('LongReadLen'));
@@ -469,17 +501,13 @@ require 5.004;
     # returned void or null, this method will return
     # undef. Otherwise, the return value of the Java method will
     # be returned as a string.
-    sub AUTOLOAD {
+
+    sub jdbc_func {
         my ($dbh) = shift;
-        my ($method) = $AUTOLOAD;
+        my ($method) = pop @_; 
         $method =~ s/.*://;  # method name starts out fully-qualified
         $method =~ s/^jdbc_//;
         my (@parameters) = @_;
-
-        # Try resetting errors.
-        $DBD::JDBC::err = 0;
-        $DBD::JDBC::errstr = "";
-        $DBD::JDBC::sqlstate = "";
 
         # When we're done, parameters_with_types will be a list
         # of alternating parameter value/JDBC type codes.
@@ -546,6 +574,13 @@ require 5.004;
     }
 
 
+    # Added in DBI 1.42. Not currently implemented here.
+    sub parse_trace_flag {
+        my ($flag) = shift;
+        return DBI->parse_trace_flag($flag);
+    } 
+
+
     sub STORE {
         my ($dbh, $attr, $value) = @_;
 
@@ -589,9 +624,9 @@ require 5.004;
         my ($name, $err);
         $name = $dbh->FETCH('Name');
         $dbh->rollback() or
-            $dbh->trace_msg("Rollback '$name' failed: $DBI::errstr\n", 3);
+            $dbh->trace_msg("Rollback '$name' failed: " . $dbh->errstr . "\n", 3);
         $dbh->disconnect() or
-            $dbh->trace_msg("Disconnect '$name' failed: $DBI::errstr\n", 3);
+            $dbh->trace_msg("Disconnect '$name' failed: " . $dbh->errstr . "\n", 3);
     }
 
 
@@ -673,7 +708,7 @@ require 5.004;
     package DBD::JDBC::st;
     $imp_data_size = 0;
     $imp_data_size = 0; # Avoid -w warnings.
-    use vars qw($AUTOLOAD);
+    ##use vars qw($AUTOLOAD);
     use strict;
     use DBI qw(:sql_types);
 
@@ -696,12 +731,12 @@ require 5.004;
         $type = ($type ? _jdbc_type($type) : undef);
 
         # Store the parameter.
-        $sth->{'jdbc_params'}->[$param - 1] = $value;
+        $sth->{'jdbc_params'}->{$param} = $value;
 
         # Store the type hint, unless it's previously been set or is
         # currently undef.
-        $sth->{'jdbc_params_types'}->[$param - 1] = $type
-            unless ($sth->{'jdbc_params_types'}->[$param - 1] or not $type);
+        $sth->{'jdbc_params_types'}->{$param} = $type
+            unless ($sth->{'jdbc_params_types'}->{$param} or not $type);
         1;
     }
 
@@ -722,24 +757,24 @@ require 5.004;
 
         if (@values) { 
             my $i;
-            for ($i = 0; $i < @values; $i++) {
-                $sth->{'jdbc_params'}->[$i] = $values[$i]; 
+            for ($i = 1; $i <= @values; $i++) {
+                $sth->{'jdbc_params'}->{$i} = $values[$i - 1]; 
             }
         }
 
         my ($i, @encodelist);
         my $paramcount = $sth->{'jdbc_params'} 
-            ? scalar(@{ $sth->{'jdbc_params'} }) : 0;
+            ? scalar( keys %{ $sth->{'jdbc_params'} }) : 0;
         $sth->trace_msg("Warning: number of parameters set ($paramcount) " 
                         . "does not match NUM_OF_PARAMS (" 
                         . $sth->FETCH('NUM_OF_PARAMS') . ")", 3) 
             if $debug && ($paramcount != $sth->FETCH('NUM_OF_PARAMS'));
 
         # encodelist is a list of alternating parameter values/types
-        for ($i = 0; $i < $paramcount; $i++) {
-            push @encodelist, $sth->{'jdbc_params'}->[$i];
+        for ($i = 1; $i <= $paramcount; $i++) {
+            push @encodelist, $sth->{'jdbc_params'}->{$i};
             push @encodelist, 
-               $sth->{'jdbc_params_types'}->[$i] || $DBD::JDBC::Types{VARCHAR};
+               $sth->{'jdbc_params_types'}->{$i} || $DBD::JDBC::Types{VARCHAR};
         }
 
         my ($rowcount, $columncount);
@@ -754,10 +789,11 @@ require 5.004;
                             OPTIONAL => 
                             [EXECUTE_RESULTSET_RESP => \$columncount]]]);
         
-        return $sth->DBI::set_err(DBD::JDBC::ErrorMessages::bad_execute())
+        return $sth->set_err(DBD::JDBC::ErrorMessages::bad_execute())
             unless ((defined $rowcount) xor (defined $columncount));
         if (defined $rowcount) {
             $sth->STORE('Active' => 0);
+            $sth->STORE('NUM_OF_FIELDS', 0); 
             $sth->{'jdbc_rowcount'} = $rowcount;
             return $rowcount == 0 ? "0E0" : $rowcount;
         }
@@ -830,18 +866,13 @@ require 5.004;
     # method will return undef. Otherwise, the return value of
     # the Java method will be returned as a string.
 
-    sub AUTOLOAD {
+    sub jdbc_func {
         my ($sth) = shift;
-        my ($method) = $AUTOLOAD;
+        my ($method) = pop @_;
         $method =~ s/.*://;  # method name starts out fully-qualified
         $method =~ s/^jdbc_//;
         my (@parameters) = @_;
 
-        # Try resetting errors.
-        $DBD::JDBC::err = 0;
-        $DBD::JDBC::errstr = "";
-        $DBD::JDBC::sqlstate = "";
-        
         # When we're done, parameters_with_types will be a list
         # of alternating parameter value/JDBC type codes.
         my @parameters_with_types = ();
@@ -866,6 +897,12 @@ require 5.004;
         return $return_value[0];
     }
 
+
+    # Added in DBI 1.42. Not currently implemented here.
+    sub parse_trace_flag {
+        my ($flag) = shift;
+        return DBI->parse_trace_flag($flag);
+    } 
 
 
     sub STORE {
@@ -895,6 +932,10 @@ require 5.004;
         my ($sth, $attr) = @_;
         if ($attr =~ /^jdbc_/) {
             return $sth->{$attr};
+        }
+
+        if ($attr eq 'ParamValues') {
+            return $sth->{'jdbc_params'};
         }
 
         # These attributes shouldn't change value for a given
@@ -1025,13 +1066,18 @@ require 5.004;
         return $DBD::JDBC::Types{DOUBLE}        if $dbi_type == SQL_DOUBLE;
         return $DBD::JDBC::Types{TINYINT}       if $dbi_type == SQL_TINYINT;
         return $DBD::JDBC::Types{SMALLINT}      if $dbi_type == SQL_SMALLINT;
-        return $DBD::JDBC::Types{BIGINT}        if $dbi_type == SQL_BIGINT;
+        return $DBD::JDBC::Types{BIGINT}        if $dbi_type == DBD::JDBC::SQL_BIGINT;
         return $DBD::JDBC::Types{BINARY}        if $dbi_type == SQL_BINARY;
         return $DBD::JDBC::Types{CHAR}          if $dbi_type == SQL_CHAR;
 
         return $DBD::JDBC::Types{DATE}          if $dbi_type == SQL_DATE;
         return $DBD::JDBC::Types{TIME}          if $dbi_type == SQL_TIME;
         return $DBD::JDBC::Types{TIMESTAMP}     if $dbi_type == SQL_TIMESTAMP;
+
+        return $DBD::JDBC::Types{ARRAY}         if $dbi_type == SQL_ARRAY;
+        return $DBD::JDBC::Types{BLOB}          if $dbi_type == SQL_BLOB;
+        return $DBD::JDBC::Types{CLOB}          if $dbi_type == SQL_CLOB;
+        return $DBD::JDBC::Types{REF}           if $dbi_type == SQL_REF;
 
         # SQL_ALL_TYPES has no meaningful mapping.
         # There's no SQL_XXX type to map to null.
@@ -1057,12 +1103,17 @@ require 5.004;
         return SQL_DOUBLE      if $jdbc_type == $DBD::JDBC::Types{DOUBLE}; 
         return SQL_TINYINT     if $jdbc_type == $DBD::JDBC::Types{TINYINT}; 
         return SQL_SMALLINT    if $jdbc_type == $DBD::JDBC::Types{SMALLINT};  
-        return SQL_BIGINT      if $jdbc_type == $DBD::JDBC::Types{BIGINT}; 
+        return DBD::JDBC::SQL_BIGINT      if $jdbc_type == $DBD::JDBC::Types{BIGINT}; 
         return SQL_BINARY      if $jdbc_type == $DBD::JDBC::Types{BINARY}; 
         return SQL_CHAR        if $jdbc_type == $DBD::JDBC::Types{CHAR}; 
         return SQL_DATE        if $jdbc_type == $DBD::JDBC::Types{DATE}; 
         return SQL_TIME        if $jdbc_type == $DBD::JDBC::Types{TIME}; 
         return SQL_TIMESTAMP   if $jdbc_type == $DBD::JDBC::Types{TIMESTAMP}; 
+
+        return SQL_ARRAY       if $jdbc_type == $DBD::JDBC::Types{ARRAY};
+        return SQL_BLOB        if $jdbc_type == $DBD::JDBC::Types{BLOB};
+        return SQL_CLOB        if $jdbc_type == $DBD::JDBC::Types{CLOB};
+        return SQL_REF         if $jdbc_type == $DBD::JDBC::Types{REF};
 
         return $jdbc_type; # May define exported jdbc_ constants for this.
     }
@@ -1514,6 +1565,9 @@ sub bad_execute() {
     return (105, "Invalid execute response", $sql_state);
 }
 
+sub bad_func_method($) {
+    return (106, "Invalid func method name: $_[0]", $sql_state);
+}
 
 1;
 

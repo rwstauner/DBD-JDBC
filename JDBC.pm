@@ -1,4 +1,4 @@
-# $Id: JDBC.pm,v 1.37 2005/11/02 23:02:20 gemerson Exp $
+# $Id: JDBC.pm,v 1.40 2005/11/29 18:18:18 gemerson Exp $
 #
 #  Copyright 1999-2001,2005 Vizdom Software, Inc. All Rights Reserved.
 #  
@@ -30,7 +30,7 @@ require 5.8.0;
 
     use vars qw($methods_installed); 
 
-    $DBD::JDBC::VERSION = 0.67;
+    $DBD::JDBC::VERSION = 0.68;
     
     $DBD::JDBC::drh = undef;
 
@@ -88,7 +88,8 @@ require 5.8.0;
     #
     # returns: true on success, false (and calls $h->set_err) on failure
     sub _send_request { 
-        my ($h, $socket, $ber, $encode_list, $decode_list) = @_;
+        my ($h, $socket, $ber, $encode_list, $decode_list, $method, 
+            $avoid_set_err) = @_;
         my $debug = $h->trace();
 
         $ber->buffer("");
@@ -99,13 +100,17 @@ require 5.8.0;
         local($SIG{PIPE}) = "IGNORE";
         $h->trace_msg("Sending request to server\n", 3) if $debug;
         $ber->write($socket); 
-        return $h->set_err(DBD::JDBC::ErrorMessages::send_error($@))
-            if ($@);
+        if ($@) {
+            die $@ if $avoid_set_err;
+            return $h->set_err(DBD::JDBC::ErrorMessages::send_error($@));
+        }
 
         $h->trace_msg("Listening for response\n", 3) if $debug;
         $ber->read($socket);
-        return $h->set_err(DBD::JDBC::ErrorMessages::recv_error($@))
-            if $@;
+        if ($@) {
+            die $@ if $avoid_set_err;
+            return $h->set_err(DBD::JDBC::ErrorMessages::recv_error($@));
+        }
         $h->trace_msg("Received response from server\n", 3) if $debug;
 
         my $err;
@@ -118,14 +123,16 @@ require 5.8.0;
                 $h->trace_msg("Error decoding response from server: $err", 3)
                     if $debug;
                 $ber->[ Convert::BER::_ERROR() ] = "";
+                die $err if $avoid_set_err;
                 return
                    $h->set_err(DBD::JDBC::ErrorMessages::ber_error($err));
             }
             $h->{jdbc_error} = []; # Reset the error list.
             push @{$h->{jdbc_error}}, @errors;
             $h->trace_msg("Error: ".$errors[0]->{errstr}."\n", 3) if $debug;
+            die $errors[0]->{errstr} if $avoid_set_err;
             return $h->set_err($errors[0]->{err}, $errors[0]->{errstr}, 
-                                    substr($errors[0]->{state}, 0, 5));
+                                    substr($errors[0]->{state}, 0, 5), $method);
         }
         else {
             $h->trace_msg("Decoding [" . join(" | ", @$decode_list) . "]\n", 3)
@@ -136,6 +143,7 @@ require 5.8.0;
                 $h->trace_msg("Error decoding response from server: $err", 3)
                     if $debug;
                 $ber->[ Convert::BER::_ERROR() ] = "";
+                die $err if $avoid_set_err;
                 return 
                    $h->set_err(DBD::JDBC::ErrorMessages::ber_error($err));
             }
@@ -347,7 +355,7 @@ require 5.8.0;
             $drh->trace_msg("Disconnecting $name\n", 3);
             $conn->disconnect() ||
                 $drh->trace_msg("Failed to disconnect $name: " . 
-                                $drh->errstr . "\n", 3);
+                                ($drh->errstr ? $drh->errstr : "") . "\n", 3);
         }
     }
 
@@ -621,12 +629,26 @@ require 5.8.0;
         my ($dbh) = shift;
         return unless $dbh->FETCH('Active');
         return if $dbh->FETCH('InactiveDestroy');
-        my ($name, $err);
-        $name = $dbh->FETCH('Name');
-        $dbh->rollback() or
-            $dbh->trace_msg("Rollback '$name' failed: " . $dbh->errstr . "\n", 3);
-        $dbh->disconnect() or
-            $dbh->trace_msg("Disconnect '$name' failed: " . $dbh->errstr . "\n", 3);
+        my $name = $dbh->FETCH('Name');
+
+        # Log any existing error on the current handle. 
+        my ($err, $errstr, $state) = ($dbh->err, $dbh->errstr, $dbh->state);
+        $dbh->trace_msg("Error on db handle being destroyed: " . 
+                        "($err) $errstr [$state]\n", 3)
+            if ($dbh->trace() and $err);
+
+        # Override of DIE and $@ copied from DBD::Proxy.
+        local $SIG{__DIE__} = 'DEFAULT';
+        local $@;
+        eval {
+            $dbh->rollback() or
+                $dbh->trace_msg("Rollback '$name' failed: " . $dbh->errstr . "\n", 3);
+            $dbh->disconnect() or
+                $dbh->trace_msg("Disconnect '$name' failed: " . $dbh->errstr . "\n", 3);
+        }; 
+        $dbh->trace_msg("Error in DBD::JDBC::db::DESTROY: $@\n", 3) 
+            if ($dbh->trace() and $@);
+        1;
     }
 
 
@@ -1001,10 +1023,28 @@ require 5.8.0;
 
         my $handle = $sth->FETCH('jdbc_handle');
         my $resp;
-        _send_request($sth,
-                      $sth->FETCH('jdbc_socket'), $sth->FETCH('jdbc_ber'),
-                      [STATEMENT_DESTROY_REQ => $handle],
-                      [STATEMENT_DESTROY_RESP => \$resp]);
+
+        # Log any existing error on the current handle. 
+        my ($err, $errstr, $state) = ($sth->err, $sth->errstr, $sth->state);
+        $sth->trace_msg("Error on statement handle being destroyed: " . 
+                        "($err) $errstr [$state]\n", 3)
+            if ($sth->trace() and $err);
+
+        # Don't let calling _send_request affect the current
+        # value of $@. (Override of $SIG{__DIE__} and $@ copied from
+        # DBD::Proxy.)
+        local $SIG{__DIE__} = 'DEFAULT';
+        local $@;
+        eval {
+            _send_request($sth,
+                          $sth->FETCH('jdbc_socket'), $sth->FETCH('jdbc_ber'),
+                          [STATEMENT_DESTROY_REQ => $handle],
+                          [STATEMENT_DESTROY_RESP => \$resp], 
+                          "sth::destroy", 1);
+        };
+        $sth->trace_msg("Error in DBD::JDBC::st::DESTROY: $@\n", 3) 
+            if ($sth->trace() and $@);
+        1;
     }
 
 

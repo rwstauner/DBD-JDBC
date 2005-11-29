@@ -99,27 +99,12 @@ INSTALLATION
       make test
       make install
 
+    The "make test" step will run tests against the included
+    hsqldb database. The classpath and JDBC URL are preconfigured
+    to allow these tests to succeed. 
 
-    The tests run during installation use various environment
-    variables to locate your Java runtime, your JDBC driver, and
-    so on. If you don't set the necessary environment variables,
-    the tests will fail. PLEASE NOTE that the use of environment
-    variables by the test scripts does not reflect normal usage
-    of this driver; in general usage only the standard Java
-    CLASSPATH environment variable needs to be set for the Java
-    server portion of this driver. Also note that the test
-    scripts attempt to start the Java server portion of this
-    driver automatically; in normal usage, you will start the
-    Java server by hand or in a startup script and leave it
-    running (like a web server) for your scripts to connect to.
-
-    If you do not have a JDBC driver for your database installed
-    on the machine on which you're installing DBD::JDBC, only the
-    first test will succeed, since the others use JDBC.
-
-    - If your JDBC driver is installed on the same machine where you
-    are performing the DBD::JDBC installation, set the following
-    environment variables:
+    If the java executable is not in your path, set the following
+    environment variable:  
 
       DBDJDBC_JAVA_BIN: the Java executable. This will default to
       "java", so if java is in your path, you need not set
@@ -127,35 +112,32 @@ INSTALLATION
       executable. This will be used to start the Java server
       portion of this driver.
 
+    You may override the port which the Perl and Java components
+    of this driver will use during testing. To do this, set the
+    following environment variable: 
+
+      DBDJDBC_PORT: The default value is 43321.
+
+    There are some database-specific tests included; the test
+    files are named for the database used. See the tests in
+    t/. These tests make use of some standard default values. If
+    you wish to run one of those database tests, set the
+    following environment variables:
+
       CLASSPATH: this must include your JDBC driver and
-      "./dbd_jdbc.jar" (the Java server portion of this driver).
+        any supporting files required by that driver.
 
       DBDJDBC_URL: a valid URL for your JDBC driver. 
-
-    A few tests for specific databases have been provided, based
-    on the databases available during development. See the tests
-    in t/ to see if a test is available for your driver and, if
-    so, read the test file for more information on running that
-    test. These test files provide some standard default values. 
-
-    If no database-specific test exists, you should also set the
-    following environment variables: 
-
-      DBDJDBC_DRIVER: the complete class name of your JDBC
-      driver. For example, for Oracle, use
-      oracle.jdbc.driver.OracleDriver.  
-
-      DBDJDBC_USER: the database username to use when connecting. 
-
-      DBDJDBC_PASSWORD: the database password to use when connecting. 
-
-
-    In either case, you may choose to override the port which the
-    Perl and Java components of this driver will use during
-    testing by setting DBDJDBC_PORT. The default is 43321. 
-
-    Use "make test TEST_VERBOSE=1" to see which values the test
-    script is using in its attempt to connect.
+        
+    The use of environment variables by the test scripts does not
+    reflect normal usage of this driver; in general usage only
+    the standard Java CLASSPATH environment variable needs to be
+    set for the Java server portion of this driver. Also note
+    that the test scripts attempt to start the Java server
+    portion of this driver automatically; in normal usage, you
+    will start the Java server by hand or in a startup script and
+    leave it running (like a web server) for your scripts to
+    connect to.
 
 
 KNOWN BUGS

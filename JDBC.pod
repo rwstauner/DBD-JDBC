@@ -864,6 +864,19 @@ either the GNU General Public License or the Artistic License
 for more details. 
 
 
+=head1 hsqldb COPYRIGHT
+
+The tests for this module make use of hsqldb. 
+
+  Copyright (c) 2001-2005, The HSQL Development Group
+  All rights reserved.
+
+  Copyright (c) 1995-2000, The Hypersonic SQL Group.
+  All rights reserved.
+
+See the full hsqldb copyright and license statements in the
+t/hsqldb directory or at http://hsqldb.org/. 
+
 =cut
 
 

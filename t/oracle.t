@@ -16,7 +16,7 @@
 # driver.
 
 unless ($ENV{DBDJDBC_URL} and $ENV{DBDJDBC_URL} =~ /^jdbc:oracle/) {
-    print "1..0\n";
+    print "1..0 # Skipped: Oracle URL not defined\n";
     exit 0;
 }
 

@@ -1,6 +1,23 @@
 Changes for DBD::JDBC.
 
 November 2005
+        Version 0.68
+
+        Fixed a bug in the handle DESTROY methods which caused
+        DESTROY to override the current value of $@. Code like
+        the following: 
+          eval { my $sth = $dbh->prepare(...); $sth->execute() }; 
+          die $@ if $@; 
+        might fail to die even when $sth->execute failed because
+        $sth->DESTROY was called when the eval block was exited. 
+
+        Added distribution tests which use hsqlbd thanks to Frank
+        Tolstrup. hsqldb is a pure Java SQL database. This should
+        make it possible to run "make test" without having
+        another database set up.
+
+
+November 2005
         Version 0.67
 
         This is DBD::JDBC 0.66 with a few further updates based

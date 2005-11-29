@@ -14,6 +14,11 @@ sub get_defaults {
             $defaults{user}     = $ENV{DBDJDBC_USER} || "scott";
             $defaults{password} = $ENV{DBDJDBC_PASSWORD} || "tiger";
         }
+        elsif ($ENV{DBDJDBC_URL} =~ /^jdbc:hsqldb/) {
+            $defaults{driver}   = "org.hsqldb.jdbcDriver";
+            $defaults{user}     = $ENV{DBDJDBC_USER} || "sa";
+            $defaults{password} = $ENV{DBDJDBC_PASSWORD} || "";
+        }
     }
     elsif ($ENV{DBDJDBC_DRIVER}) {
         $defaults{driver}   = $ENV{DBDJDBC_DRIVER};

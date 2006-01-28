@@ -17,7 +17,7 @@ t/basis.t
 t/lib.pl
 t/oracle.t
 t/hsqldb/hsqldb-1.8.0.2.jar
-t/hsqldb/log4j-1.2.11.jar 
+t/hsqldb/log4j-1.2.13.jar 
 t/hsqldb/testdb.properties
 t/hsqldb/testdb.script
 t/hsqldb/hypersonic_lic.txt

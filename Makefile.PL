@@ -27,7 +27,7 @@ sub libscan {
 sub test {
     my @cp = ("dbd_jdbc.jar", 
               "t/hsqldb/hsqldb-1.8.0.2.jar", 
-              "t/hsqldb/log4j-1.2.11.jar",
+              "t/hsqldb/log4j-1.2.13.jar",
               "\$(CLASSPATH)");
     my $inherited = shift->SUPER::test(@_);
     if ($^O eq 'MSWin32') {

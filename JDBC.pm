@@ -1,4 +1,4 @@
-# $Id: JDBC.pm,v 1.40 2005/11/29 18:18:18 gemerson Exp $
+# $Id: JDBC.pm,v 1.41 2006/01/27 22:10:04 gemerson Exp $
 #
 #  Copyright 1999-2001,2005 Vizdom Software, Inc. All Rights Reserved.
 #  
@@ -30,7 +30,7 @@ require 5.8.0;
 
     use vars qw($methods_installed); 
 
-    $DBD::JDBC::VERSION = 0.68;
+    $DBD::JDBC::VERSION = 0.69;
     
     $DBD::JDBC::drh = undef;
 
@@ -309,6 +309,7 @@ require 5.8.0;
         $dbh->STORE('jdbc_socket' => $socket);
         $dbh->STORE('jdbc_ber' => $ber);
         $dbh->STORE('jdbc_character_set' => $encoding);
+        $dbh->STORE('jdbc_url' => $url); 
         # The connection list is used by disconnect_all.
         my ($conns) = $drh->FETCH('jdbc_connections') || [];
         push @$conns, $dbh;
@@ -540,6 +541,46 @@ require 5.8.0;
                           [CONNECTION_FUNC_RESP => \@value]); 
                             
         return $value[0];
+    }
+
+
+    # This method is partially implemented. It needs to get its
+    # data from DatabaseMetaData on the server.
+    sub get_info {
+        my ($dbh, $type) = @_;
+        
+        return undef unless defined $type and length $type;
+        
+        ## For now, use the JDBC URL to retrieve a string to
+        ## serve as the DBMS name. Whenever access to
+        ## DatabaseMetaData is implemented, use
+        ## getDatabaseProductName.
+        my $name; 
+        my $url = $dbh->{jdbc_url}; 
+        if ($url =~ m`jdbc:(.+)://`) { # jdbc:xxx[:yyy]://conn_info
+            $name = $1;
+        } elsif ($url =~ m`jdbc:([^:]+):`) { # jdbc:xxx:conn_info
+            $name = $1;
+        } elsif ($url =~ m`jdbc:(.+)`) { # jdbc:xxx
+            $name = $1;
+        } else {
+            $name = $url;
+        }
+
+        my %type = (
+            ## Basic information:
+            6  => ["SQL_DRIVER_NAME", 'DBD/JDBC.pm'],
+            17  => ["SQL_DBMS_NAME", $name ]);
+
+        ## Put both numbers and names into a hash
+        my %t;
+        for (keys %type) {
+            $t{$_} = $type{$_}->[1];
+            $t{$type{$_}->[0]} = $type{$_}->[1];
+        }
+        return undef unless exists $t{$type};
+        my $ans = $t{$type};
+        return $ans;
     }
 
 

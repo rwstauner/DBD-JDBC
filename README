@@ -1,7 +1,7 @@
 
 DBD::JDBC - JDBC proxy driver for the DBI module
 
-  Copyright 1999-2001,2005 Vizdom Software, Inc. All Rights Reserved.
+  Copyright 1999-2001,2005-2006 Vizdom Software, Inc. All Rights Reserved.
   
   This program is free software; you can redistribute it and/or 
   modify it under the same terms as the Perl Kit, namely, under 
@@ -32,15 +32,18 @@ SUMMARY
   The DBD::JDBC Java server process is threaded and supports
   multiple simultaneous connections.
 
-  JDBC 1.22 drivers are currently supported. JDBC 2.0-compatible
-  drivers are expected to work, but no JDBC 2.0 functionality is
-  explicitly exposed via DBD::JDBC. Public methods of the JDBC
-  Connection, Statement, ResultSet, and ResultSetMetaData
-  classes, including any public driver-specific methods not part
-  of the JDBC API, are exposed using reflection and the 
-  $h->jdbc_func method. Only methods with primitive or String
-  parameters and return types are currently supported in this
-  way.
+  The DBD::JDBC Java server uses the following JDBC 2.0 features:
+  java.sql.Types.{BLOB, CLOB, ARRAY},
+  ResultSet.getCharacterStream, ResultSet.getBlob and the
+  java.sql.Blob type, ResultSet.getClob and the java.sql.Clob
+  type. 
+
+  Public methods of the JDBC Connection, Statement, ResultSet,
+  and ResultSetMetaData classes, including any public
+  driver-specific methods not part of the JDBC API, are exposed
+  using reflection and the $h->jdbc_func method. Only methods
+  with primitive or String parameters and return types are
+  currently supported in this way.
 
   This module also allows a Java application or servlet to create
   a JDBC connection and then exec a Perl script which can use
@@ -168,7 +171,7 @@ NOT YET IMPLEMENTED
 
       $dbh->last_insert_id
 
-      $dbh->get_info
+      $dbh->get_info (partial as of 0.69)
 
   Access to JDBC-specific functionality. Some amount of JDBC
   functionality is currently exposed using $h->jdbc_func and Java

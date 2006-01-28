@@ -641,7 +641,10 @@ determine how to retrieve column data.
         Column type         Method used        
         BINARY, VARBINARY   getBytes
         LONGVARBINARY       getBinaryStream
-        LONGVARCHAR         getUnicodeStream
+        BLOB                getBlob().getBinaryStream
+        CLOB                getClob().getCharacterStream
+        LONGVARCHAR         getCharacterStream
+        ARRAY               getString
         all others          getString
 
 Once retrieved, the data is returned to Perl as a sequence of
@@ -843,7 +846,7 @@ Gennis Emerson <gemerson@vizdom.com>
 
 =head1 COPYRIGHT
 
-Copyright 1999-2001,2005 Vizdom Software, Inc. All Rights Reserved.
+Copyright 1999-2001,2005-2006 Vizdom Software, Inc. All Rights Reserved.
   
 This program is free software; you can redistribute it and/or 
 modify it under the same terms as the Perl Kit, namely, under 

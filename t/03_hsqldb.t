@@ -9,7 +9,7 @@ use Test::More;
 $| = 1;
 
 BEGIN {
-    plan tests => 8;
+    plan tests => 10;
 }
 
 $ENV{DBDJDBC_URL} = "jdbc:hsqldb:file:t/hsqldb/testdb";
@@ -32,7 +32,10 @@ SKIP: {
         diag("Connection error: $DBI::errstr\n");
         $fatal++;
     };
-    skip "Connection failed", 6 if $fatal;
+    skip "Connection failed", 8 if $fatal;
+
+    is($dbh->get_info(6), "DBD/JDBC.pm", "SQL_DRIVER_NAME"); 
+    is($dbh->get_info(17), "hsqldb", "SQL_DBMS_NAME"); 
 
     my $sth = $dbh->prepare("select id, value from testtable order by id"); 
     ok ($sth, "prepare") or do {

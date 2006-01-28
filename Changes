@@ -1,5 +1,20 @@
 Changes for DBD::JDBC.
 
+January 2006
+        Version 0.69
+ 
+        Added the first bit of $dbh->get_info support thanks to
+        Jesper Krogh.
+
+        Server changes: Updated the method which reads data in
+        the server (handleRequest(FetchRequest aRequest)) to use
+        different JDBC methods for BLOB, CLOB, and LONGVARCHAR
+        data types. The server now retrieves BLOB and CLOB
+        objects using getBlob and getClob. The use of the
+        deprecated method getUnicodeStream to read LONGVARCHAR
+        has been replaced by use of getCharacterStream.
+
+
 November 2005
         Version 0.68
 

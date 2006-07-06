@@ -18,9 +18,9 @@ DBD::JDBC - JDBC proxy driver for the DBI module
   Perl 5.8.6 or higher
   DBI 1.48 or higher
   Convert::BER 1.31
-  Java Virtual Machine compatible with JDK 1.3
+  Java Virtual Machine compatible with JDK 1.4
   A JDBC driver
-
+  log4j 1.2.13
 
 =head1 DESCRIPTION
 
@@ -73,16 +73,17 @@ To start the server,
 
 =item 1
 
-Place the dbd_jdbc.jar file and your database's JDBC driver on the
-machine where you wish to run the server.
+Place the dbd_jdbc.jar file, log4j-1.2.13.jar, and your
+database's JDBC driver on the machine where you wish to run the
+server.
 
 =item 2
 
-Add dbd_jdbc.jar and your database's JDBC driver to your
-classpath. Follow any other instructions which came with your
-JDBC driver. For example, a type 2 JDBC driver may require that
-the database's native libraries be added to your path or
-library path.
+Add dbd_jdbc.jar, log4j-1.2.13.jar, a log4j.properties file, and
+your database's JDBC driver to your classpath. Follow any other
+instructions which came with your JDBC driver. For example, a
+type 2 JDBC driver may require that the database's native
+libraries be added to your path or library path.
 
 =item 3
 
@@ -103,13 +104,6 @@ documentation for C<java.sql.DriverManager> for an example.
 This is the port to which this server will listen. Your Perl
 client applications will need to know this in order to connect.
 
-=item dbd.trace 
-
-If set, this value indicates the tracing level for the
-server. Tracing output will be written to stderr. Legal values
-are C<silent> (the default), C<brief>, C<verbose>, C<tedious>,
-and C<abusive>. 
-
 =back
 
 =back
@@ -121,10 +115,38 @@ Example
 Here is a simple example shell script for running the server
 (written for bash).
 
-  export CLASSPATH=dbd_jdbc.jar:/oracle/jdbc/classes111.zip:$CLASSPATH
+  export CLASSPATH=dbd_jdbc.jar:log4j-1.2.13.jar:.:/oracle/jdbc/classes111.zip:$CLASSPATH
   DRIVERS=oracle.jdbc.driver.OracleDriver
-  java -Djdbc.drivers=$DRIVERS -Ddbd.port=9001 -Ddbd.trace=tedious com.vizdom.dbd.jdbc.Server
+  java -Djdbc.drivers=$DRIVERS -Ddbd.port=9001 com.vizdom.dbd.jdbc.Server
 
+
+=head2 Setting up log4j
+
+As of DBD:JDBC 0.70, the server uses log4j for logging. log4j is
+a Java logging implementation from the Apache Logging
+project. More information is available at
+http://logging.apache.org/log4j/docs/. 
+
+A log4j jar file and sample configuration file are included with
+DBD::JDBC. The log4j jar file is in the t/hsqldb directory since
+it's also used by hsqldb. The properties file, log4j.properties,
+is in the unzipped module directory. The sample
+log4j.properties file has all logging disabled. To enable
+logging, change the value of OFF in the following line
+
+  log4j.logger.com.vizdom.dbd.jdbc = OFF
+
+to one of the following values: FATAL, ERROR, WARN, INFO, DEBUG,
+TRACE, ALL. Log messages will be written to stdout. You can
+configure log4j to log to files; see the log4j documentation for
+more information on how to configure log4j.
+
+Here's an example command line which starts the server from the
+unzipped module distribution (no JDBC driver is included in the
+classpath). Notice that "." is in the classpath in order to
+locate log4j.properties.
+
+java -Ddbd.port=9001 -classpath 'dbd_jdbc.jar;t/hsqldb/log4j-1.2.13.jar;.' com.vizdom.dbd.jdbc.Server 
 
 
 =head2 Connecting to the server
@@ -223,6 +245,17 @@ any other connection properties.
 
 
 =head1 USAGE NOTES
+
+=head2 Reading long data
+
+As of DBD::JDBC 0.70, the default behavior of this driver is to
+read long fields in their entirety. This behavior is controlled
+by the driver attribute C<jdbc_longreadall>. When
+C<jdbc_longreadall> is true, the DBI attributes LongReadLen and
+LongTruncOk will be ignored and the entire contents of long
+fields will be returned. To return to the default DBI behavior,
+set C<jdbc_longreadall> to false. 
+
 
 =head2 Calling JDBC methods
 

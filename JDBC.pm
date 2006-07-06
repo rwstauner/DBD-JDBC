@@ -1,4 +1,4 @@
-# $Id: JDBC.pm,v 1.41 2006/01/27 22:10:04 gemerson Exp $
+# $Id: JDBC.pm,v 1.45 2006/06/21 00:58:55 gemerson Exp $
 #
 #  Copyright 1999-2001,2005 Vizdom Software, Inc. All Rights Reserved.
 #  
@@ -30,7 +30,7 @@ require 5.8.0;
 
     use vars qw($methods_installed); 
 
-    $DBD::JDBC::VERSION = 0.69;
+    $DBD::JDBC::VERSION = '0.70';
     
     $DBD::JDBC::drh = undef;
 
@@ -314,6 +314,8 @@ require 5.8.0;
         my ($conns) = $drh->FETCH('jdbc_connections') || [];
         push @$conns, $dbh;
         $drh->STORE('jdbc_connections' => $conns);
+        my $lra = $drh->FETCH('jdbc_longreadall');
+        $dbh->STORE('jdbc_longreadall' => ((defined $lra) ? $lra : 1));
 
         $dbh;
     }
@@ -362,6 +364,7 @@ require 5.8.0;
 
     sub STORE {
         my ($drh, $attr, $value) = @_;
+
         if ($attr =~ /^jdbc_/) {
             $drh->{$attr} = $value;
             return 1;
@@ -431,6 +434,8 @@ require 5.8.0;
         $sth->STORE('LongReadLen' => $dbh->FETCH('LongReadLen'));
         $sth->STORE('LongTruncOk' => $dbh->FETCH('LongTruncOk') ? 1 : 0);
         $sth->STORE('ChopBlanks' => $dbh->FETCH('ChopBlanks') ? 1 : 0);
+        $sth->STORE('jdbc_longreadall' => 
+            $dbh->FETCH('jdbc_longreadall') ? 1 : 0);
         $sth;
     }
 
@@ -651,6 +656,7 @@ require 5.8.0;
 
     sub FETCH {
         my ($dbh, $attr) = @_;
+
         if ($attr =~ /^jdbc_/) {
             return $dbh->{$attr};
         }
@@ -660,7 +666,6 @@ require 5.8.0;
         if ($attr eq 'RowCacheSize') { # unimplemented
             return undef;
         }
-
         $dbh->SUPER::FETCH($attr);
     }
 
@@ -970,9 +975,17 @@ require 5.8.0;
 
     sub STORE {
         my ($sth, $attr, $value) = @_;
+
         if ($attr =~ /^jdbc_/) {
             $sth->{$attr} = $value;
-            return 1;
+            my $ok = 1; 
+            if ($attr eq 'jdbc_longreadall') {
+                $value = ($value ? 1 : 0);  # Canonicalize for server.
+                $sth->{$attr} = $value;
+                $ok = _set_attr($sth, $attr, $value);
+            }
+            ## TODO: how should we report an error in storing on the server?
+            return; 
         }
         
         if ($attr eq 'LongReadLen') {
@@ -993,6 +1006,7 @@ require 5.8.0;
 
     sub FETCH {
         my ($sth, $attr) = @_;
+
         if ($attr =~ /^jdbc_/) {
             return $sth->{$attr};
         }
@@ -1085,6 +1099,16 @@ require 5.8.0;
         };
         $sth->trace_msg("Error in DBD::JDBC::st::DESTROY: $@\n", 3) 
             if ($sth->trace() and $@);
+
+        ## Calling finish as $sth->finish interferes with
+        ## $DBI::errstr after this DESTROY completes. Calling
+        ## finish($sth) doesn't. All we're currently after is
+        ## setting Active to false, so it's possible that we
+        ## should just do that explicitly here, but if finish
+        ## ever does something else, we might want that something
+        ## also.
+        finish($sth);
+
         1;
     }
 

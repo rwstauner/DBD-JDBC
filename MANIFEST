@@ -7,6 +7,7 @@ README
 README.basis
 ToDo
 dbd_jdbc.jar
+log4j.properties
 example/PerlServlet.java
 example/testPerlServlet.pl
 lib/Bundle/DBD/JDBC.pm

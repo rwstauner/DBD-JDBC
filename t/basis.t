@@ -22,7 +22,7 @@ use Test::More;
 $| = 1;
 
 BEGIN {
-    plan skip_all => "No BASIS URL defined" 
+    plan skip_all => "BASIS URL not defined" 
         unless ($ENV{DBDJDBC_URL} and 
                 $ENV{DBDJDBC_URL} =~ /^jdbc:opentext:basis/);
     plan tests => 9;

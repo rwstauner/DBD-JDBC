@@ -1,5 +1,26 @@
 Changes for DBD::JDBC.
 
+June 2006
+        Version 0.70
+
+        Changed the default behavior when reading long fields to
+        read the entire field. Added a new property,
+        jdbc_longreadall, which can be set to false to disable
+        this behavior and return to the DBI standard behavior
+        controlled by LongReadLen and LongTruncOk.
+
+        Statements are now marked inactive when their DESTROY
+        method is called. Thanks to Jesper Krogh for the
+        suggestion. 
+
+        Server changes: The server now uses log4j for its
+        logging. 
+        
+        The server will attempt to close database connections
+        when a connection thread is ending. Thanks to Jesper
+        Krogh for the patch.
+        
+
 January 2006
         Version 0.69
  

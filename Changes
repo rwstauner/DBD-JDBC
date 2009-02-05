@@ -1,5 +1,27 @@
 Changes for DBD::JDBC.
 
+November 2008
+        Version 0.71
+         
+        Added a private method, jdbc_disconnect, that can be used
+        to invoke disconnect in cases where the public disconnect
+        method provided by DBI has been overridden or otherwise
+        made unavailable (this was happening in Apache::DBI). 
+         
+        Server changes: Modified the way methods are found when
+        invoking JDBC methods via reflection.
+
+        Added support for last_insert_id using the JDBC method
+        getGeneratedKeys.
+
+        Added code to the server to attempt to roll back any
+        existing transactions before closing a connection due to
+        a fatal error. Thanks to Martin Evans for the suggestion.
+
+        When the DBI version is >= 1.54, DBD::JDBC no longer
+        exports SQL_BIGINT since it's been added back to DBI.
+
+
 June 2006
         Version 0.70
 

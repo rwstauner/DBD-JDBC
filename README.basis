@@ -1,5 +1,5 @@
 This is a hints file for using the DBD::JDBC driver with the
-BASIS JDBC driver.
+Livelink Collections Server (formerly BASIS) JDBC driver.
 
 * Connecting
 
@@ -155,4 +155,14 @@ documentation for more information on the use of $sth->jdbc_func,
 and the BASIS JDBC driver API documentation for a complete list
 of available methods.
 
+
+* last_insert_id
+
+By default, last_insert_id will return the value of the primary
+key for the updated field. If your primary key is an MFI, no data
+will be available.
+
+If you use the column index values when specifying columns for
+last_insert_id, be aware that the column numbers are indexes into
+the columns of the table being updated. 
 

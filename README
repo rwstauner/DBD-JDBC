@@ -170,8 +170,6 @@ NOT YET IMPLEMENTED
 
       $dbh->clone
 
-      $dbh->last_insert_id
-
       $dbh->get_info (partial as of 0.69)
 
   Access to JDBC-specific functionality. Some amount of JDBC

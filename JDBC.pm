@@ -1,6 +1,6 @@
-# $Id: JDBC.pm,v 1.45 2006/06/21 00:58:55 gemerson Exp $
+# $Id: JDBC.pm,v 1.49 2008/12/17 00:05:23 gemerson Exp $
 #
-#  Copyright 1999-2001,2005 Vizdom Software, Inc. All Rights Reserved.
+#  Copyright 1999-2001,2005,2008 Vizdom Software, Inc. All Rights Reserved.
 #  
 #  This program is free software; you can redistribute it and/or 
 #  modify it under the same terms as the Perl Kit, namely, under 
@@ -18,19 +18,31 @@
 # either the GNU General Public License or the Artistic License
 # for more details.
 
-require 5.8.0;
+# There's a warning in (some) later versions of Perl about the 
+# string used here in require, so try to ignore that.
+
+{ no warnings qw(portable); require 5.8.0; }
 
 {
     package DBD::JDBC;
     use DBI 1.48;
     require Exporter; 
     @ISA = qw(Exporter); 
-    %EXPORT_TAGS = ( sql_types => [ qw( SQL_BIGINT ) ], ); 
-    @EXPORT_OK = qw(SQL_BIGINT);
+
+    # DBI 1.54 added SQL_BIGINT back.
+    if ($DBI::VERSION > 1.54) {
+        %EXPORT_TAGS = ( sql_types => [ ], ); 
+        @EXPORT_OK = ();
+    }
+    else {
+        %EXPORT_TAGS = ( sql_types => [ qw( SQL_BIGINT ) ], ); 
+        @EXPORT_OK = qw(SQL_BIGINT);
+    }
+
 
     use vars qw($methods_installed); 
 
-    $DBD::JDBC::VERSION = '0.70';
+    $DBD::JDBC::VERSION = '0.71';
     
     $DBD::JDBC::drh = undef;
 
@@ -49,6 +61,7 @@ require 5.8.0;
         if (!$methods_installed++) {
             DBD::JDBC::db->install_method('jdbc_func', {});
             DBD::JDBC::st->install_method('jdbc_func', {});
+            DBD::JDBC::db->install_method('jdbc_disconnect', {});
         }
         $drh;
     }
@@ -91,6 +104,7 @@ require 5.8.0;
         my ($h, $socket, $ber, $encode_list, $decode_list, $method, 
             $avoid_set_err) = @_;
         my $debug = $h->trace();
+
 
         $ber->buffer("");
         $h->trace_msg("Encoding [" . join(" | ", @$encode_list) . "]\n", 3) 
@@ -399,14 +413,27 @@ require 5.8.0;
     # 
     # JDBC: Connection.prepareStatement
     sub prepare {
-        my ($dbh, $statement) = @_;
+        my ($dbh, $statement, $params) = @_;
         my ($debug) = $dbh->trace();
         
+        my ($keyType, $keyTypeCode, $keyList) = (undef, 'STRING', []); 
+        if ($params && $params->{'jdbc_columnnames'}) {
+            $keyType = "name"; 
+            $keyList = $params->{'jdbc_columnnames'}; 
+        }
+        elsif ($params && $params->{'jdbc_columnindexes'}) {
+            $keyType = "index"; 
+            $keyTypeCode = 'INTEGER';
+            $keyList = $params->{'jdbc_columnindexes'}; 
+        }
+
         my ($statement_handle);
         return undef unless
             _send_request($dbh,
                           $dbh->FETCH('jdbc_socket'), $dbh->FETCH('jdbc_ber'),
-                          [PREPARE_REQ => $statement],
+                          [PREPARE_REQ => [STRING => $statement, 
+                                           ($keyType?'STRING':'NULL') => $keyType, 
+                                           $keyTypeCode => [@$keyList] ] ],
                           [PREPARE_RESP => \$statement_handle]);
         
         my $param_count = _count_params($statement); 
@@ -503,6 +530,18 @@ require 5.8.0;
         return $result;
     }
 
+    # A private disconnect method which can be called from user
+    # code even in environments such as Apache::DBI which disable
+    # the standard disconnect. It's possible for a JDBC exception
+    # to be returned which indicates that the underlying database
+    # connection is non-functional. The DBD::JDBC server doesn't
+    # know anything about specific database error codes, so it
+    # can't handle the exception, but user code may be able to
+    # tell that the connection should be closed.
+    sub jdbc_disconnect {
+        my ($dbh) = shift;
+        disconnect($dbh);
+    }
 
     # This is the func implementation. It expects the method name
     # to be a valid java.sql.Connection method name. The
@@ -634,6 +673,21 @@ require 5.8.0;
         return DBI->parse_trace_flag($flag);
     } 
 
+
+    # Implementation of last_insert_id.
+    sub last_insert_id {
+        my ($dbh, $catalog, $schema, $table, $field) = @_; 
+        my $key; 
+        return undef unless
+            _send_request($dbh, 
+                          $dbh->FETCH('jdbc_socket'), $dbh->FETCH('jdbc_ber'),
+                          [GET_GENERATED_KEYS_REQ => [($catalog?'STRING':'NULL') => $catalog, 
+                                                      ($schema?'STRING':'NULL') => $schema,
+                                                      ($table?'STRING':'NULL') => $table, 
+                                                      ($field?'STRING':'NULL') => $field]],
+                          [GET_GENERATED_KEYS_RESP => \$key]); 
+        return $key; 
+    }
 
     sub STORE {
         my ($dbh, $attr, $value) = @_;
@@ -782,12 +836,8 @@ require 5.8.0;
 
     *_send_request = \&DBD::JDBC::_send_request;
 
-    # ??? Error checking on parameter? I'm not sure it's worth
-    # trusting my naive parameter counting to rule out bad parameter
-    # indexes here. I don't remember what else I had in mind when
-    # I wrote that question. Ensure that it's a scalar? Don't
-    # allow a parameter type to be changed after it's been set (DBI
-    # spec requirement).
+    # TODO: Don't allow a parameter type to be changed after it's been
+    # set (DBI spec requirement).
 
     # If a type hint is provided, it should be a DBI type
     # constant. This method will convert the DBI types to JDBC
@@ -1294,6 +1344,9 @@ require 5.8.0;
     sub JDBC_STATEMENT_FUNC_REQ()              { 0x20 }
     sub JDBC_STATEMENT_FUNC_RESP()             { 0x20 + 1000 }
 
+    sub JDBC_GET_GENERATED_KEYS_REQ()          { 0x21 }
+    sub JDBC_GET_GENERATED_KEYS_RESP()         { 0x21 + 1000 }
+
     # Define name/type/tag triplets.
 
     DBD::JDBC::BER->define(
@@ -1322,8 +1375,10 @@ require 5.8.0;
  [ROLLBACK_RESP => $NULL,  
   ber_tag(BER_APPLICATION | BER_PRIMITIVE, JDBC_ROLLBACK_RESP())],
 
- [PREPARE_REQ  => $STRING,  
-  ber_tag(BER_APPLICATION | BER_PRIMITIVE, JDBC_PREPARE_REQ())],
+ #[PREPARE_REQ  => $STRING,  
+ # ber_tag(BER_APPLICATION | BER_PRIMITIVE, JDBC_PREPARE_REQ())],
+ [PREPARE_REQ  => $SEQUENCE,  
+  ber_tag(BER_APPLICATION | BER_CONSTRUCTOR, JDBC_PREPARE_REQ())],
  [PREPARE_RESP => $INTEGER,  
   ber_tag(BER_APPLICATION | BER_PRIMITIVE, JDBC_PREPARE_RESP())],
 
@@ -1385,6 +1440,11 @@ require 5.8.0;
  [PING_RESP => $INTEGER,  
   ber_tag(BER_APPLICATION | BER_PRIMITIVE, JDBC_PING_RESP())],
 
+ [GET_GENERATED_KEYS_REQ => $SEQUENCE,  
+  ber_tag(BER_APPLICATION | BER_CONSTRUCTOR, JDBC_GET_GENERATED_KEYS_REQ())],
+ [GET_GENERATED_KEYS_RESP => $STRING,
+  ber_tag(BER_APPLICATION | BER_PRIMITIVE, JDBC_GET_GENERATED_KEYS_RESP())],
+
  [HASH => $SEQUENCE,
   ber_tag(BER_APPLICATION | BER_CONSTRUCTOR, JDBC_HASH())],  
 
@@ -1438,7 +1498,7 @@ require 5.8.0;
         # Unpack the buffer into a new BER object. 
         $self->unpack($ber, \$ber2);
         
-        # There should be a better way to do this. CHOICE, ANY, ... ???
+        # TODO: There should be a better way to do this. CHOICE, ANY, ... ?
         # tag() will return undef when the end of the buffer is reached
         for ($i = 0; $tag = $ber2->tag(); $i++) {
             if ($tag == $ber2->NULL()) {
@@ -1494,7 +1554,7 @@ require 5.8.0;
 
 {
     package DBD::JDBC::BER::FETCH_RESP;
-    # Can this be another MYSEQUENCE? ???
+    # TODO: Can this be another MYSEQUENCE?
     sub unpack_array {
         my ($self, $ber, $arg) = @_;
         
